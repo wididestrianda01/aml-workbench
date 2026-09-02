@@ -1,0 +1,37 @@
+# --- Local planning artifacts: NEVER commit ---
+.wayfinder/
+docs/local/
+.scratch/
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# --- Data: license forbids redistribution (Elliptic CC BY-NC-ND) ---
+# Exception: data/manifest.json IS committed (checksums, pinned byte sizes).
+data/*
+!data/manifest.json
+*.duckdb
+*.parquet
+
+# --- ML runtime artifacts ---
+mlruns/
+mlflow.db
+*.pkl
+*.onnx
+
+# --- Credentials ---
+.env
+kaggle.json
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- OS/editor ---
+.DS_Store
