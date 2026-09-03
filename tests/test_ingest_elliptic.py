@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 
 from aml_workbench import config
 from aml_workbench.cli import app
-from conftest import build_elliptic_fixture
+from conftest import build_elliptic_fixture, parquet_checksums
 
 runner = CliRunner()
 
@@ -28,16 +28,6 @@ def _patch_expected(monkeypatch, fixture) -> None:
     monkeypatch.setattr(config, "EXPECTED_EDGE_COUNT", len(fixture.edges))
     monkeypatch.setattr(config, "EXPECTED_CLASS_COUNTS", fixture.class_counts)
     monkeypatch.setattr(config, "EXPECTED_TIME_STEPS", frozenset(fixture.steps))
-
-
-def _parquet_checksums(data_dir: Path) -> dict[str, str]:
-    import hashlib
-
-    export = data_dir / "ingest" / "elliptic"
-    return {
-        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in sorted(export.glob("*.parquet"))
-    }
 
 
 def test_green_path_types_schema_and_artifacts(elliptic_data_dir, monkeypatch) -> None:
@@ -124,10 +114,10 @@ def test_determinism_rerun_byte_identical_parquet(elliptic_data_dir, monkeypatch
     fixture = build_elliptic_fixture()
     _patch_expected(monkeypatch, fixture)
     assert _ingest(elliptic_data_dir).exit_code == 0
-    first = _parquet_checksums(elliptic_data_dir)
+    first = parquet_checksums(elliptic_data_dir, 'elliptic')
     assert len(first) == 3
     assert _ingest(elliptic_data_dir).exit_code == 0
-    second = _parquet_checksums(elliptic_data_dir)
+    second = parquet_checksums(elliptic_data_dir, 'elliptic')
     assert first == second
 
 

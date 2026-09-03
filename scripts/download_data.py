@@ -18,7 +18,7 @@ from pathlib import Path
 # Allow running as a script from a fresh clone (repo root on sys.path).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from aml_workbench.data.download import run_download  # noqa: E402
+from aml_workbench.data.download import format_result, run_download  # noqa: E402
 from aml_workbench.errors import AmlWorkbenchError  # noqa: E402
 
 
@@ -30,10 +30,7 @@ def main() -> int:
     data_dir = args.data_dir or Path(__file__).resolve().parents[1] / "data"
     try:
         for result in run_download(data_dir, dataset=args.dataset):
-            print(
-                f"ok {result.dataset}/{result.name} channel={result.channel} "
-                f"bytes={result.size} sha256={result.sha256}"
-            )
+            print(format_result(result))
     except AmlWorkbenchError as exc:
         print(f"Fail-closed: {exc}", file=sys.stderr)
         return 1

@@ -70,7 +70,7 @@ def test_kaggle_fails_mirror_size_mismatch_fails_closed(tmp_path: Path, monkeypa
 
     monkeypatch.setattr(dl, "fetch_url", fake_fetch_url)
     result = runner.invoke(
-        app, ["download", "--data-dir", str(tmp_path), "--dataset", "elliptic"]
+        app, ["download", "--data-dir", str(tmp_path), "--track", "elliptic"]
     )
     assert result.exit_code == 1
     assert not (tmp_path / "manifest.json").exists()
@@ -90,7 +90,7 @@ def test_fallback_with_pinned_sizes_succeeds(tmp_path: Path, monkeypatch) -> Non
 
     monkeypatch.setattr(dl, "fetch_url", fake_fetch_url)
     result = runner.invoke(
-        app, ["download", "--data-dir", str(tmp_path), "--dataset", "elliptic"]
+        app, ["download", "--data-dir", str(tmp_path), "--track", "elliptic"]
     )
     assert result.exit_code == 0
     raw = tmp_path / "raw" / "elliptic"
@@ -107,7 +107,7 @@ def test_hi_small_single_channel_failure_fails_closed(tmp_path: Path, monkeypatc
 
     monkeypatch.setattr(dl, "fetch_kaggle_file", fail_file)
     result = runner.invoke(
-        app, ["download", "--data-dir", str(tmp_path), "--dataset", "hi-small"]
+        app, ["download", "--data-dir", str(tmp_path), "--track", "hi-small"]
     )
     assert result.exit_code == 1
     assert not (tmp_path / "manifest.json").exists()
@@ -125,7 +125,7 @@ def test_kaggle_primary_success_used_directly(tmp_path: Path, monkeypatch) -> No
 
     monkeypatch.setattr(dl, "fetch_url", fail_url)
     result = runner.invoke(
-        app, ["download", "--data-dir", str(tmp_path), "--dataset", "elliptic"]
+        app, ["download", "--data-dir", str(tmp_path), "--track", "elliptic"]
     )
     assert result.exit_code == 0
     manifest = json.loads((tmp_path / "manifest.json").read_text())

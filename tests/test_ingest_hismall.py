@@ -5,21 +5,19 @@ violation injection via monkeypatched config constants.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from aml_workbench import config
-from aml_workbench.cli import app
-from conftest import build_hismall_fixture
+from conftest import build_hismall_fixture, parquet_checksums, run_ingest
 
 runner = CliRunner()
 
 
 def _ingest(data_dir: Path):
-    return runner.invoke(app, ["ingest", "--data-dir", str(data_dir), "--track", "hi-small"])
+    return run_ingest(data_dir, "hi-small")
 
 
 def _patch_expected(
@@ -29,14 +27,6 @@ def _patch_expected(
     monkeypatch.setattr(config, "HI_SMALL_MIN_ACCOUNTS", accounts)
     monkeypatch.setattr(config, "HI_SMALL_LAUNDERING_COUNT_PINNED", laundering)
     monkeypatch.setattr(config, "HI_SMALL_LAUNDERING_RATE_TARGET", rate_target)
-
-
-def _parquet_checksums(data_dir: Path) -> dict[str, str]:
-    export = data_dir / "ingest" / "hi-small"
-    return {
-        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in sorted(export.glob("*.parquet"))
-    }
 
 
 def test_types_and_counts(hismall_data_dir, monkeypatch) -> None:
@@ -150,7 +140,7 @@ def test_determinism_rerun_byte_identical_parquet(hismall_data_dir, monkeypatch)
         rate_target=fixture.laundering_count / len(fixture.tx_rows),
     )
     assert _ingest(hismall_data_dir).exit_code == 0
-    first = _parquet_checksums(hismall_data_dir)
+    first = parquet_checksums(hismall_data_dir, 'hi-small')
     assert set(first) == {"transactions.parquet", "accounts.parquet"}
     assert _ingest(hismall_data_dir).exit_code == 0
-    assert first == _parquet_checksums(hismall_data_dir)
+    assert first == parquet_checksums(hismall_data_dir, 'hi-small')

@@ -4,7 +4,8 @@ A production-shaped, locally deployable AML transaction-monitoring workbench on
 public data — **not** a live banking system. Two tracks:
 
 - **Track A — Elliptic**: real labeled Bitcoin transaction graph (203,769 tx /
-  234,355 edges / 166 features / 49 time steps) carrying graph features, ML
+  234,355 edges / 165 features / 49 time steps; file-verified — the
+  literature's "166 features" does not match the shipped CSV) carrying graph features, ML
   baselines, strict-inductive temporal walk-forward validation, and a GNN baseline.
 - **Track B — IBM IT-AML HI-Small**: synthetic bank-like data (~5.1M tx / ~518K
   accounts) carrying the rules-based scenario engine, SQL typology analytics,

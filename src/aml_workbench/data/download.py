@@ -21,7 +21,7 @@ from pathlib import Path
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
-from aml_workbench.data.manifest import record_downloaded_files
+from aml_workbench.data.manifest import record_downloaded_files, sha256_of
 from aml_workbench.errors import DownloadError
 
 KAGGLE_DOWNLOAD_BASE = "https://www.kaggle.com/api/v1/datasets/download"
@@ -58,6 +58,14 @@ class DownloadResult:
     channel: str
     size: int
     sha256: str
+
+
+def format_result(result: DownloadResult) -> str:
+    """One shared result-line format for the CLI and the script wrapper."""
+    return (
+        f"ok {result.dataset}/{result.name} channel={result.channel} "
+        f"bytes={result.size} sha256={result.sha256}"
+    )
 
 
 def _kaggle_auth_header() -> dict[str, str]:
@@ -100,16 +108,6 @@ def _fetch(url: str, dest: Path, extra_headers: dict[str, str] | None = None) ->
         raise DownloadError(f"HTTP {exc.code} fetching {url}") from exc
     except OSError as exc:
         raise DownloadError(f"Network error fetching {url}: {exc}") from exc
-
-
-def _sha256_of(path: Path, chunk_size: int = 1 << 20) -> str:
-    import hashlib
-
-    digest = hashlib.sha256()
-    with path.open("rb") as fh:
-        while chunk := fh.read(chunk_size):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 # --- per-dataset orchestration ------------------------------------------------
@@ -197,7 +195,7 @@ def _finalize(
                 name=name,
                 channel=channel,
                 size=dest.stat().st_size,
-                sha256=_sha256_of(dest),
+                sha256=sha256_of(dest),
             )
         )
     return results

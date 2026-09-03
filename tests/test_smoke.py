@@ -1,7 +1,7 @@
 """P1-07 seam tests: C5 smoke run + one-page report.
 
 Drives `aml smoke` against a tmp_path DuckDB seeded with a synthetic labeled
-Elliptic schema (166 features), external behavior only. Gate violation is
+Elliptic schema (165 features), external behavior only. Gate violation is
 injected by monkeypatching the config threshold — never by editing constants.
 """
 

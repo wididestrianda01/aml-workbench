@@ -179,3 +179,28 @@ def hismall_data_dir(tmp_path: Path) -> Path:
         (raw_dir / name).write_bytes(data)
     _write_manifest(data_dir, "hi-small", files, license_note="fixture", source_note="fixture")
     return data_dir
+
+
+# --- shared seam helpers ---------------------------------------------------------
+
+
+def run_ingest(data_dir, track):
+    """CLI seam helper: ingest one track."""
+    from typer.testing import CliRunner
+
+    from aml_workbench.cli import app
+
+    return CliRunner().invoke(
+        app, ["ingest", "--data-dir", str(data_dir), "--track", track]
+    )
+
+
+def parquet_checksums(data_dir: Path, track: str) -> dict[str, str]:
+    """sha256 of every exported parquet for a track (determinism assertions)."""
+    import hashlib
+
+    export = data_dir / "ingest" / track
+    return {
+        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sorted(export.glob("*.parquet"))
+    }

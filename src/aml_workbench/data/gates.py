@@ -18,15 +18,10 @@ def assert_count(actual: int, expected: int, label: str) -> None:
 
 
 def assert_min_count(actual: int, minimum: int, label: str) -> None:
-    if actual < expected_floor(minimum):
+    if actual < minimum:
         raise DataQualityError(
             f"Count gate failed for {label}: expected >= {minimum}, got {actual}."
         )
-
-
-def expected_floor(minimum: int) -> int:
-    """Hook for readability; keeps assert_min_count trivially honest."""
-    return minimum
 
 
 def assert_elliptic_counts(
@@ -45,8 +40,9 @@ def assert_elliptic_counts(
         missing = sorted(set(config.EXPECTED_TIME_STEPS) - set(steps))
         extra = sorted(set(steps) - set(config.EXPECTED_TIME_STEPS))
         raise DataQualityError(
-            f"Time-step gate failed: expected exactly steps {sorted(config.EXPECTED_TIME_STEPS)[0]}"
-            f"..{sorted(config.EXPECTED_TIME_STEPS)[-1]}; missing={missing}, unexpected={extra}."
+            f"Time-step gate failed: expected exactly steps "
+            f"{min(config.EXPECTED_TIME_STEPS)}..{max(config.EXPECTED_TIME_STEPS)}; "
+            f"missing={missing}, unexpected={extra}."
         )
 
 
@@ -66,9 +62,18 @@ def assert_class_feature_id_sets_equal(only_in_classes: int, only_in_features: i
         )
 
 
-def assert_hi_small_counts(tx_count: int, account_count: int, laundering_count: int) -> None:
+def assert_hi_small_counts(
+    tx_count: int,
+    account_count: int,
+    laundering_count: int,
+    account_rows: int,
+) -> None:
+    """account_count: distinct (bank, account) pairs in the transactions table;
+    account_rows: rows in the accounts table. Both floors are asserted so a
+    shrunken accounts file cannot slip through the transaction-derived count."""
     assert_min_count(tx_count, config.HI_SMALL_MIN_TX, "hi-small transactions")
     assert_min_count(account_count, config.HI_SMALL_MIN_ACCOUNTS, "hi-small distinct accounts")
+    assert_min_count(account_rows, config.HI_SMALL_MIN_ACCOUNTS, "hi-small accounts table")
     rate = laundering_count / tx_count if tx_count else 0.0
     target = config.HI_SMALL_LAUNDERING_RATE_TARGET
     tol = config.HI_SMALL_LAUNDERING_RATE_TOLERANCE
@@ -77,9 +82,8 @@ def assert_hi_small_counts(tx_count: int, account_count: int, laundering_count: 
             f"Laundering-rate gate failed: expected ~{target:.6f} (+/-{tol:.0%}), got {rate:.6f} "
             f"({laundering_count} flagged of {tx_count})."
         )
-    pinned = getattr(config, "HI_SMALL_LAUNDERING_COUNT_PINNED", None)
-    if pinned is not None and laundering_count != pinned:
+    if laundering_count != config.HI_SMALL_LAUNDERING_COUNT_PINNED:
         raise DataQualityError(
             f"Laundering count drifted from the pinned value: "
-            f"pinned {pinned}, got {laundering_count}."
+            f"pinned {config.HI_SMALL_LAUNDERING_COUNT_PINNED}, got {laundering_count}."
         )

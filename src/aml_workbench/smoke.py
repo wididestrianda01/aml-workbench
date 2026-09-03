@@ -2,9 +2,10 @@
 
 Trains on labeled steps 1-34, tests on labeled steps 35-49 (temporal split
 only, never random; unknown-class nodes excluded from training and scoring).
-Gates at ROC-AUC >= 0.80 and < 10 minutes wall clock — below/over the gate the
-run exits non-zero and NO report is written (fail-closed). PR-AUC is reported
-from the start: it is the predeclared challenger metric in Phase 4.
+Gates when BOTH models reach ROC-AUC >= 0.80 and the run stays under 10 minutes
+wall clock — below/over the gate the run exits non-zero and NO report is
+written (fail-closed). PR-AUC is reported from the start: it is the
+predeclared challenger metric in Phase 4.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from pathlib import Path
 
 import duckdb
 import numpy as np
+from numpy.typing import NDArray
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, roc_auc_score
@@ -41,11 +43,14 @@ class SmokeResult:
     test_rows: int
     runtime_s: float
     gate_threshold: float
+    runtime_limit_s: float
     passed: bool
 
 
-def _load_labeled(db_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Labeled rows only: X (n, 166), y (illicit=1), steps — ordered by tx_id."""
+def _load_labeled(
+    db_path: Path,
+) -> tuple[NDArray[np.float64], NDArray[np.int64], NDArray[np.int64]]:
+    """Labeled rows only: X (n, 165), y (illicit=1), steps — ordered by tx_id."""
     feature_cols = ", ".join(f"f{i:03d}" for i in range(1, config.FEATURE_COUNT + 1))
     query = f"""
         SELECT f.time_step, t.class_label, {feature_cols}
@@ -82,7 +87,7 @@ def _load_labeled(db_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return x, y, steps
 
 
-def _split_temporal(steps: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _split_temporal(steps: NDArray[np.int64]) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
     """Locked temporal split: train steps 1-34, test steps 35-49. Never random."""
     train_mask = steps <= config.TRAIN_STEP_MAX
     test_mask = steps >= config.TEST_STEP_MIN
@@ -92,10 +97,10 @@ def _split_temporal(steps: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _fit_and_score(
-    x: np.ndarray,
-    y: np.ndarray,
-    train_mask: np.ndarray,
-    test_mask: np.ndarray,
+    x: NDArray[np.float64],
+    y: NDArray[np.int64],
+    train_mask: NDArray[np.bool_],
+    test_mask: NDArray[np.bool_],
 ) -> list[ModelMetrics]:
     scaler = StandardScaler()
     x_train = scaler.fit_transform(x[train_mask])
@@ -145,8 +150,11 @@ def run_smoke(data_dir: Path) -> Path:
     metrics = _fit_and_score(x, y, train_mask, test_mask)
     runtime_s = time.monotonic() - started
 
-    best_roc = max(m.roc_auc for m in metrics)
-    passed = best_roc >= config.SMOKE_ROC_AUC_GATE and runtime_s <= config.SMOKE_RUNTIME_LIMIT_S
+    worst_roc = min(m.roc_auc for m in metrics)
+    passed = (
+        all(m.roc_auc >= config.SMOKE_ROC_AUC_GATE for m in metrics)
+        and runtime_s <= config.SMOKE_RUNTIME_LIMIT_S
+    )
     result = SmokeResult(
         models=metrics,
         train_base_rate=float(y[train_mask].mean()),
@@ -155,14 +163,16 @@ def run_smoke(data_dir: Path) -> Path:
         test_rows=int(test_mask.sum()),
         runtime_s=runtime_s,
         gate_threshold=config.SMOKE_ROC_AUC_GATE,
+        runtime_limit_s=config.SMOKE_RUNTIME_LIMIT_S,
         passed=passed,
     )
     if not passed:
         # Fail-closed: below the gate no report artifact exists.
         raise SmokeGateError(
-            f"Smoke gate failed: best ROC-AUC {best_roc:.4f} vs threshold "
-            f"{config.SMOKE_ROC_AUC_GATE}, runtime {runtime_s:.1f}s vs limit "
-            f"{config.SMOKE_RUNTIME_LIMIT_S:.0f}s. No report written."
+            f"Smoke gate failed: worst ROC-AUC {worst_roc:.4f} vs threshold "
+            f"{config.SMOKE_ROC_AUC_GATE} (both models must clear it), runtime "
+            f"{runtime_s:.1f}s vs limit {config.SMOKE_RUNTIME_LIMIT_S:.0f}s. "
+            "No report written."
         )
     report_dir = data_dir / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)

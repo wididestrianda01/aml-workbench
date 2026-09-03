@@ -59,20 +59,20 @@ def _not_implemented(stage: str, phase: int) -> None:
 @app.command()
 def download(
     data_dir: DataDirOpt = None,
-    dataset: Track = Track.all,
+    track: Track = Track.all,
 ) -> None:
     """C1: dual-channel dataset download (Kaggle primary, PyG mirror fallback)."""
     from aml_workbench.data.download import run_download
 
     try:
-        results = run_download(_data_dir(data_dir), dataset=dataset.value)
+        results = run_download(_data_dir(data_dir), dataset=track.value)
     except AmlWorkbenchError as exc:
         typer.echo(f"Fail-closed: {exc}", err=True)
         raise typer.Exit(code=1) from exc
+    from aml_workbench.data.download import format_result
+
     for r in results:
-        typer.echo(
-            f"ok {r.dataset}/{r.name} channel={r.channel} bytes={r.size} sha256={r.sha256}"
-        )
+        typer.echo(format_result(r))
 
 
 @app.command()

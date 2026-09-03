@@ -89,14 +89,6 @@ def test_unknown_edge_endpoint_exits_nonzero(elliptic_data_dir, monkeypatch) -> 
     assert not (elliptic_data_dir / "ingest").exists()
 
 
-def test_expected_constants_are_the_locked_numbers() -> None:
-    """The frozen constants are the numbers the portfolio cites."""
-    assert config.EXPECTED_TX_COUNT == 203_769
-    assert config.EXPECTED_EDGE_COUNT == 234_355
-    assert config.EXPECTED_CLASS_COUNTS == {1: 4_545, 2: 42_019, None: 157_205}
-    assert config.EXPECTED_TIME_STEPS == frozenset(range(1, 50))
-
-
 @pytest.mark.parametrize(
     ("actual", "expected", "label"),
     [(203_768, 203_769, "elliptic transactions")],

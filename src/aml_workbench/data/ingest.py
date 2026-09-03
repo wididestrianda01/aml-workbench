@@ -232,10 +232,11 @@ def ingest_hismall(data_dir: Path, db_path: Path) -> list[str]:
         laundering_count = _scalar(
             mem, f"SELECT COALESCE(sum(is_laundering), 0) FROM {trans_csv}"
         )
+        account_rows = _scalar(mem, f"SELECT count(*) FROM {accounts_csv}")
     finally:
         mem.close()
 
-    assert_hi_small_counts(tx_count, account_count, laundering_count)
+    assert_hi_small_counts(tx_count, account_count, laundering_count, account_rows)
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(db_path))

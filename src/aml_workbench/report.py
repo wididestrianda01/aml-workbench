@@ -26,8 +26,8 @@ def render_smoke_report(result: SmokeResult) -> str:
     lines = [
         "# AML Workbench Smoke Report (C5 gate)",
         "",
-        f"- Run: {__version__}, gate ROC-AUC >= {result.gate_threshold:.2f}, "
-        f"runtime limit 600 s",
+        f"- Run: {__version__}, gate ROC-AUC >= {result.gate_threshold:.2f} for BOTH "
+        f"models, runtime limit {result.runtime_limit_s:.0f} s",
         f"- Verdict: **{'PASS' if result.passed else 'FAIL'}**",
         f"- Split: {_SPLIT_STATEMENT}",
         f"- Labeled rows: train {result.train_rows} / test {result.test_rows}",
@@ -49,5 +49,3 @@ def render_smoke_report(result: SmokeResult) -> str:
         "",
     ]
     return "\n".join(lines)
-
-
