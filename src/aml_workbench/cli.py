@@ -23,7 +23,7 @@ from aml_workbench.errors import AmlWorkbenchError
 
 app = typer.Typer(
     name="aml",
-    help="AML Workbench — batch pipeline commands (fail-closed).",
+    help="AML workbench — batch pipeline commands (fail-closed).",
     no_args_is_help=True,
 )
 
@@ -47,12 +47,8 @@ def _data_dir(value: Path | None) -> Path:
     return value if value is not None else config.default_data_dir()
 
 
-def _not_implemented(stage: str, phase: int) -> None:
-    typer.echo(
-        f"Fail-closed: stage '{stage}' is not implemented yet "
-        f"(planned for Phase {phase} of the build plan).",
-        err=True,
-    )
+def _not_implemented(stage: str) -> None:
+    typer.echo(f"Fail-closed: stage '{stage}' is not implemented yet.", err=True)
     raise typer.Exit(code=1)
 
 
@@ -61,7 +57,7 @@ def download(
     data_dir: DataDirOpt = None,
     track: Track = Track.all,
 ) -> None:
-    """C1: dual-channel dataset download (Kaggle primary, PyG mirror fallback)."""
+    """Dual-channel dataset download (Kaggle primary, PyG mirror fallback)."""
     from aml_workbench.data.download import run_download
 
     try:
@@ -80,7 +76,7 @@ def ingest(
     data_dir: DataDirOpt = None,
     track: Track = Track.all,
 ) -> None:
-    """C2-C4: manifest-checksum gate + typed DuckDB ingest + count assertions."""
+    """Manifest-checksum gate + typed DuckDB ingest + count assertions."""
     from aml_workbench.data.ingest import run_ingest
 
     root = _data_dir(data_dir)
@@ -95,7 +91,7 @@ def ingest(
 
 @app.command()
 def smoke(data_dir: DataDirOpt = None) -> None:
-    """C5: LR + RF on the temporal split, gated at ROC-AUC >= 0.80, one-page report."""
+    """LR + RF on the temporal split, gated at ROC-AUC >= 0.80, one-page report."""
     from aml_workbench.smoke import run_smoke
 
     root = _data_dir(data_dir)
@@ -109,80 +105,96 @@ def smoke(data_dir: DataDirOpt = None) -> None:
 
 @app.command()
 def rules(data_dir: DataDirOpt = None) -> None:
-    """Phase 2: rules-based scenario engine over HI-Small tables."""
-    _not_implemented("rules", 2)
+    """Rules-based scenario engine over HI-Small tables."""
+    from aml_workbench.rules import run_rules
+
+    root = _data_dir(data_dir)
+    try:
+        summary = run_rules(root)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 
 @app.command()
 def alert_stats(data_dir: DataDirOpt = None) -> None:
-    """Phase 2: per-scenario alert statistics."""
-    _not_implemented("alert-stats", 2)
+    """Per-scenario alert statistics."""
+    from aml_workbench.alerts import run_alert_stats
+
+    root = _data_dir(data_dir)
+    try:
+        report_path = run_alert_stats(root)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Alert stats written to {report_path}")
 
 
 @app.command()
 def graph_features(data_dir: DataDirOpt = None) -> None:
-    """Phase 3: NetworkX graph features over the Elliptic temporal graph."""
-    _not_implemented("graph-features", 3)
+    """NetworkX graph features over the Elliptic temporal graph."""
+    _not_implemented("graph-features")
 
 
 @app.command()
 def baselines(data_dir: DataDirOpt = None) -> None:
-    """Phase 4: LR/RF raw-feature baselines on the temporal split."""
-    _not_implemented("baselines", 4)
+    """LR/RF raw-feature baselines on the temporal split."""
+    _not_implemented("baselines")
 
 
 @app.command()
 def challenger(data_dir: DataDirOpt = None) -> None:
-    """Phase 4: LightGBM challenger vs baselines on predeclared PR-AUC."""
-    _not_implemented("challenger", 4)
+    """LightGBM challenger vs baselines on predeclared PR-AUC."""
+    _not_implemented("challenger")
 
 
 @app.command()
 def shap(data_dir: DataDirOpt = None) -> None:
-    """Phase 4: SHAP summary on the best model."""
-    _not_implemented("shap", 4)
+    """SHAP summary on the best model."""
+    _not_implemented("shap")
 
 
 @app.command()
 def validate(data_dir: DataDirOpt = None) -> None:
-    """Phase 5: strict-inductive walk-forward validation + per-timestep metrics."""
-    _not_implemented("validate", 5)
+    """Strict-inductive walk-forward validation + per-timestep metrics."""
+    _not_implemented("validate")
 
 
 @app.command()
 def drift(data_dir: DataDirOpt = None) -> None:
-    """Phase 5: PSI drift monitoring on scores and features."""
-    _not_implemented("drift", 5)
+    """PSI drift monitoring on scores and features."""
+    _not_implemented("drift")
 
 
 @app.command()
 def gnn(data_dir: DataDirOpt = None) -> None:
-    """Phase 6: strict-inductive GraphSAGE baseline (PyG, 3 seeds)."""
-    _not_implemented("gnn", 6)
+    """Strict-inductive GraphSAGE baseline (PyG, 3 seeds)."""
+    _not_implemented("gnn")
 
 
 @app.command()
 def triage(data_dir: DataDirOpt = None) -> None:
-    """Phase 7: fused rule+ML alert queue + operational KPIs."""
-    _not_implemented("triage", 7)
+    """Fused rule+ML alert queue + operational KPIs."""
+    _not_implemented("triage")
 
 
 @app.command()
 def view(data_dir: DataDirOpt = None) -> None:
-    """Phase 7: thin Streamlit triage view."""
-    _not_implemented("view", 7)
+    """Thin Streamlit triage view."""
+    _not_implemented("view")
 
 
 @app.command()
 def track(data_dir: DataDirOpt = None) -> None:
-    """Phase 8: MLflow tracking of model runs."""
-    _not_implemented("track", 8)
+    """MLflow tracking of model runs."""
+    _not_implemented("track")
 
 
 @app.command()
 def report(data_dir: DataDirOpt = None) -> None:
-    """Phase 8: technical report + interview brief + README."""
-    _not_implemented("report", 8)
+    """Technical report + interview brief + README."""
+    _not_implemented("report")
 
 
 def main() -> None:  # pragma: no cover - thin entry point

@@ -1,4 +1,4 @@
-"""P1-01 seam tests: the CLI is the single pipeline-command seam.
+"""Seam tests: the CLI is the single pipeline-command seam.
 
 External behavior only: exit codes and listed stage names — never internals.
 """
@@ -48,8 +48,7 @@ def test_help_exits_zero_and_lists_all_stages() -> None:
 
 
 def test_unimplemented_stage_fails_closed() -> None:
-    for stage, phase in [("rules", 2), ("graph-features", 3), ("report", 8)]:
+    for stage in ["graph-features", "report"]:
         result = runner.invoke(app, [stage])
         assert result.exit_code == 1, f"{stage} must exit non-zero"
         assert "not implemented" in _output(result)
-        assert f"Phase {phase}" in _output(result)

@@ -1,4 +1,4 @@
-"""C1 — dual-channel dataset download, fail-closed.
+"""Dual-channel dataset download, fail-closed.
 
 Elliptic: Kaggle (primary; honors optional KAGGLE_USERNAME/KAGGLE_KEY from the
 environment only) with automatic PyG-mirror fallback (auth-free, byte-pinned
@@ -61,21 +61,11 @@ class DownloadResult:
 
 
 def format_result(result: DownloadResult) -> str:
-    """One shared result-line format for the CLI and the script wrapper."""
+    """One shared result-line format for the CLI."""
     return (
         f"ok {result.dataset}/{result.name} channel={result.channel} "
         f"bytes={result.size} sha256={result.sha256}"
     )
-
-
-def _kaggle_auth_header() -> dict[str, str]:
-    """Kaggle credentials from the environment ONLY — never code or config."""
-    user = os.environ.get("KAGGLE_USERNAME")
-    key = os.environ.get("KAGGLE_KEY")
-    if user and key:
-        token = base64.b64encode(f"{user}:{key}".encode()).decode()
-        return {"Authorization": f"Basic {token}"}
-    return {}
 
 
 # --- fetchers (module-level so seam tests can monkeypatch channels) ----------
@@ -97,7 +87,13 @@ def fetch_url(url: str, dest: Path) -> None:
 
 
 def _fetch(url: str, dest: Path, extra_headers: dict[str, str] | None = None) -> None:
-    headers = {**_kaggle_auth_header(), **(extra_headers or {})}
+    # Kaggle credentials from the environment ONLY — never code or config.
+    user = os.environ.get("KAGGLE_USERNAME")
+    key = os.environ.get("KAGGLE_KEY")
+    headers: dict[str, str] = dict(extra_headers or {})
+    if user and key:
+        token = base64.b64encode(f"{user}:{key}".encode()).decode()
+        headers["Authorization"] = f"Basic {token}"
     req = urlrequest.Request(url, headers=headers)
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:

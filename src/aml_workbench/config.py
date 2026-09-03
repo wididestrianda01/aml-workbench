@@ -33,7 +33,7 @@ def default_data_dir() -> Path:
 
 # --- Elliptic (Track A) frozen expectations -----------------------------------
 # Verified against primary sources 2026-09-02 (research dossier R2); re-asserted
-# mechanically at every ingest (gate C4).
+# mechanically at every ingest.
 
 EXPECTED_TX_COUNT = 203_769
 EXPECTED_EDGE_COUNT = 234_355
@@ -55,7 +55,7 @@ HI_SMALL_LAUNDERING_RATE_TARGET = 1 / 981
 HI_SMALL_LAUNDERING_RATE_TOLERANCE = 0.05  # +/- 5% band around 1-in-981
 HI_SMALL_LAUNDERING_COUNT_PINNED = 5_177  # exact pinned observed count (2026-09-03)
 
-# --- C5 smoke gate -------------------------------------------------------------
+# --- Smoke gate -------------------------------------------------------------
 
 SMOKE_ROC_AUC_GATE = 0.80  # dossier: Weber RF ~0.87-0.90; working pipeline clears 0.80
 SMOKE_RUNTIME_LIMIT_S = 600.0  # < 10 minutes, fail-closed
@@ -65,3 +65,22 @@ SMOKE_SEED = 42
 # (txId, time_step, 165 feature columns); PyG slices [:, 2:] to a 165-dim x.
 # The literature's "166 features" does not match the shipped file - the file wins.
 FEATURE_COUNT = 165
+
+# --- Rules scenarios (Track B, HI-Small) -------------------------------
+# Scenario thresholds are frozen here and tuned per scenario via
+# `aml alert-stats` (spec user story 10). Amount comparisons are US Dollar
+# only: HI-Small amounts are native-currency and only comparable within one.
+
+REPORTING_THRESHOLD_USD = 10_000.0  # CTR-style reporting threshold (US BSA)
+STRUCTURING_MIN_USD = 9_000.0  # "just below" band floor
+STRUCTURING_TX_COUNT = 3  # >= 3 sub-threshold payments from one account per day
+VELOCITY_TX_COUNT = 20  # >= 20 outgoing transactions in one day (precision-tuned)
+CHURN_MAX_RETAINED_PCT = 0.10  # round trip keeps <= 10% of the inflow
+CHURN_MAX_DELAY_H = 24  # payout must follow the inflow within 24 h
+FAN_MIN_COUNTERPARTIES = 5  # distinct counterparties in one day window
+FAN_MIN_AMOUNT_USD = 50_000.0  # aggregate in the same day window
+CYCLE_MAX_LENGTH = 3  # bounded cycle search: 2- and 3-cycles only
+CYCLE_AMOUNT_TOLERANCE = 0.10  # +/- 10% amount preservation around the cycle
+CYCLE_MIN_LEG_USD = 1_000.0  # minimum daily leg amount entering cycle search
+COMMUNITY_MIN_SHARED_COUNTERPARTIES = 5  # shared counterparties in one day
+COMMUNITY_MAX_HUB_DEGREE = 64  # daily counterparty degree cap before pairing

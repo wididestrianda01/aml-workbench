@@ -1,4 +1,4 @@
-"""P1-03 + P1-04 seam tests: Elliptic typed ingest, C2 checksum gate, C3
+"""Seam tests: Elliptic typed ingest, checksum gate,
 determinism (byte-identical parquet re-run), idempotency.
 
 All tests drive the CLI (pipeline-command seam) against a tmp_path DuckDB and
@@ -110,7 +110,7 @@ def test_byte_size_mismatch_alone_refuses(elliptic_data_dir, monkeypatch) -> Non
 
 
 def test_determinism_rerun_byte_identical_parquet(elliptic_data_dir, monkeypatch) -> None:
-    """C3 seam test: ingest twice on a frozen fixture -> parquet checksums equal."""
+    """Determinism seam test: ingest twice on a frozen fixture -> parquet checksums equal."""
     fixture = build_elliptic_fixture()
     _patch_expected(monkeypatch, fixture)
     assert _ingest(elliptic_data_dir).exit_code == 0

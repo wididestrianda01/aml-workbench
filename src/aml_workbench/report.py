@@ -1,5 +1,5 @@
-"""Report artifacts. Phase 1 renders the one-page smoke report (C5 evidence);
-later phases extend this module with validation reports and the technical report.
+"""Report artifacts. The one-page smoke report is rendered here;
+later stages extend this module with validation reports and the technical report.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ _SPLIT_STATEMENT = (
     "Temporal split only, never random: train on labeled steps 1-34, "
     "test on labeled steps 35-49; unknown-class nodes excluded from training "
     "and scoring (strict-inductive in spirit; full leakage-proof machinery "
-    "arrives in Phase 5)."
+    "arrives later)."
 )
 
 
@@ -24,7 +24,7 @@ def render_smoke_report(result: SmokeResult) -> str:
     """One-page smoke report: the Phase-1 evidence artifact, auditable without
     reading code."""
     lines = [
-        "# AML Workbench Smoke Report (C5 gate)",
+        "# Smoke Report",
         "",
         f"- Run: {__version__}, gate ROC-AUC >= {result.gate_threshold:.2f} for BOTH "
         f"models, runtime limit {result.runtime_limit_s:.0f} s",
@@ -43,7 +43,38 @@ def render_smoke_report(result: SmokeResult) -> str:
     lines += [
         "",
         "PR-AUC is reported from the start: it is the predeclared challenger "
-        "metric for Phase 4 model selection.",
+        "metric for model selection.",
+        "",
+        f"Generated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def render_alert_stats_report(stats: list[tuple[str, int, int, float]]) -> str:
+    """One-page per-scenario alert statistics: the Phase-2 evidence artifact."""
+    total_alerts = sum(int(row[1]) for row in stats)
+    total_entities = sum(int(row[2]) for row in stats)
+    lines = [
+        "# Alert Statistics (rules engine)",
+        "",
+        "- Source: `rule_alert` table (scenario, entity, reason, details)",
+        "- Windows: tumbling daily; amount scenarios restricted to US Dollar",
+        "",
+        "| Scenario | Alerts | Distinct entities | Laundering-entity precision |",
+        "|---|---|---|---|",
+    ]
+    for scenario, alert_count, distinct_entities, precision in stats:
+        lines.append(
+            f"| {scenario} | {alert_count} | {distinct_entities} | {precision:.4f} |"
+        )
+    lines += [
+        f"| **Total** | **{total_alerts}** | **{total_entities}** | |",
+        "",
+        "Laundering-entity precision: share of alerted accounts appearing in at "
+        "least one laundering-flagged transaction (tuning compass, not a "
+        "performance metric). Scenario thresholds live in the frozen config "
+        "module and are tuned per scenario against these statistics.",
         "",
         f"Generated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}",
         "",

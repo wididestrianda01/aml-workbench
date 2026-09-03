@@ -1,4 +1,4 @@
-"""AML Workbench — AML transaction monitoring & illicit-activity detection workbench."""
+"""AML transaction monitoring & illicit-activity detection workbench."""
 
 from __future__ import annotations
 

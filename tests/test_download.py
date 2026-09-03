@@ -1,4 +1,4 @@
-"""P1-02 seam tests: C1 dual-channel download, fail-closed.
+"""Seam tests: dual-channel download, fail-closed.
 
 Channels are monkeypatched at the seam boundary (fetch_* functions); no test
 touches the network. No credentials ever appear in tests.

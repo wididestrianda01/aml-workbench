@@ -1,4 +1,4 @@
-"""P1-06 seam tests: HI-Small ingest — typed schema, manifest gate, count
+"""Seam tests: HI-Small ingest — typed schema, manifest gate, count
 gates, determinism. Same pattern as the Elliptic tests: CLI seam, tmp_path,
 violation injection via monkeypatched config constants.
 """

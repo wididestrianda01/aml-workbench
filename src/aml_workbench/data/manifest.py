@@ -1,4 +1,4 @@
-"""C2 — frozen SHA-256 manifest: load, verify, and (bootstrap-only) record.
+"""Frozen SHA-256 manifest: load, verify, and (bootstrap-only) record.
 
 The manifest (``data/manifest.json``) is committed. Hashes are recorded once at
 the first successful download and never regenerated. Ingest verifies every raw
@@ -43,10 +43,10 @@ def load_manifest(data_dir: Path) -> dict[str, Any]:
     return data
 
 
-def sha256_of(path: Path, chunk_size: int = 1 << 20) -> str:
+def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as fh:
-        while chunk := fh.read(chunk_size):
+        while chunk := fh.read(1 << 20):
             digest.update(chunk)
     return digest.hexdigest()
 
@@ -74,7 +74,7 @@ def pins_for(manifest: dict[str, Any], dataset: str) -> dict[str, FilePin]:
 
 
 def verify_raw_files(pins: dict[str, FilePin], raw_dir: Path, dataset: str) -> None:
-    """C2 gate: every pinned file must exist with exact bytes and checksum.
+    """Manifest gate: every pinned file must exist with exact bytes and checksum.
 
     Raises DataQualityError on the first mismatch; caller must not have written
     any output at this point.

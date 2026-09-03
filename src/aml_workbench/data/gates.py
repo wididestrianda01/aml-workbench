@@ -1,4 +1,4 @@
-"""C4 — mechanical dataset-drift detection: expected counts, asserted, fail = stop.
+"""Mechanical dataset-drift detection: expected counts, asserted, fail = stop.
 
 Expected values are frozen in ``aml_workbench.config`` and read from that
 module at gate time so tests can inject violations by monkeypatching (never by

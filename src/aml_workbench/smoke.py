@@ -1,11 +1,11 @@
-"""C5 — smoke run: LR + RF on the strict temporal split, gated, with report.
+"""Smoke run: LR + RF on the strict temporal split, gated, with report.
 
 Trains on labeled steps 1-34, tests on labeled steps 35-49 (temporal split
 only, never random; unknown-class nodes excluded from training and scoring).
 Gates when BOTH models reach ROC-AUC >= 0.80 and the run stays under 10 minutes
 wall clock — below/over the gate the run exits non-zero and NO report is
 written (fail-closed). PR-AUC is reported from the start: it is the
-predeclared challenger metric in Phase 4.
+predeclared challenger metric.
 """
 
 from __future__ import annotations
@@ -141,7 +141,7 @@ def _fit_and_score(
 
 
 def run_smoke(data_dir: Path) -> Path:
-    """Run the C5 smoke gate; return the report path. Fail-closed: below the
+    """Run the smoke gate; return the report path. Fail-closed: below the
     gate (or over the runtime limit) raises SmokeGateError and writes nothing."""
     db_path = data_dir / "workbench.duckdb"
     started = time.monotonic()

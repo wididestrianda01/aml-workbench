@@ -1,9 +1,9 @@
-"""C2 + C3 + C4 — typed deterministic DuckDB ingest with fail-closed gates.
+"""Typed deterministic DuckDB ingest with fail-closed gates.
 
 Order of operations per track (fail-closed before any output is written):
-1. C2: verify every raw file against the frozen manifest (SHA-256 + bytes).
-2. C4: assert expected counts / integrity via in-memory queries over the CSVs.
-3. C3: only then write typed DuckDB tables and export canonical parquet with a
+1. Verify every raw file against the frozen manifest (SHA-256 + bytes).
+2. Assert expected counts / integrity via in-memory queries over the CSVs.
+3. Only then write typed DuckDB tables and export canonical parquet with a
    total, data-defined row order — re-running on identical inputs produces
    byte-identical parquet.
 
@@ -83,7 +83,7 @@ def _scalar(con: duckdb.DuckDBPyConnection, sql: str) -> int:
 
 def ingest_elliptic(data_dir: Path, db_path: Path) -> list[str]:
     raw_dir = data_dir / "raw" / "elliptic"
-    # C2 — before anything is written.
+    # Manifest verification — before anything is written.
     pins = pins_for(load_manifest(data_dir), "elliptic")
     verify_raw_files(pins, raw_dir, "elliptic")
 
@@ -97,7 +97,7 @@ def ingest_elliptic(data_dir: Path, db_path: Path) -> list[str]:
         raw_dir / "elliptic_txs_edgelist.csv", ELLIPTIC_EDGE_COLUMNS, header=True
     )
 
-    # C4 — count assertions against in-memory reads, before any artifact is written.
+    # Count assertions against in-memory reads, before any artifact is written.
     mem = duckdb.connect(":memory:")
     try:
         tx_count = _scalar(mem, f"SELECT count(*) FROM {features_csv}")
@@ -148,7 +148,7 @@ def ingest_elliptic(data_dir: Path, db_path: Path) -> list[str]:
     assert_edge_referential_integrity(orphan_endpoints)
     assert_class_feature_id_sets_equal(only_in_classes, only_in_features)
 
-    # C3 — typed tables with total, data-defined ordering; CREATE OR REPLACE keeps
+    # Typed tables with total, data-defined ordering; CREATE OR REPLACE keeps
     # re-runs idempotent (never duplicate rows).
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(db_path))
@@ -272,9 +272,10 @@ def ingest_hismall(data_dir: Path, db_path: Path) -> list[str]:
         con.close()
 
     laundering_rate = laundering_count / tx_count if tx_count else 0.0
+    one_in = f"1-in-{1 / laundering_rate:.1f}" if laundering_rate > 0 else "none"
     return [
         f"hi-small: {tx_count} tx / {account_count} accounts / "
-        f"{laundering_count} flagged (rate {laundering_rate:.6f}, 1-in-{1 / laundering_rate:.1f})"
+        f"{laundering_count} flagged (rate {laundering_rate:.6f}, {one_in})"
     ]
 
 

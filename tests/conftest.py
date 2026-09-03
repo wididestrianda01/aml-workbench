@@ -181,6 +181,24 @@ def hismall_data_dir(tmp_path: Path) -> Path:
     return data_dir
 
 
+def make_hismall_data_dir(
+    tmp_path: Path, tx_rows: list[list[str]], account_rows: list[list[str]]
+) -> Path:
+    """Scenario fixture: arbitrary constructed HI-Small rows written through
+    the same raw-CSV + manifest path as the standard fixture, so rules tests
+    exercise the full `ingest -> rules` pipeline seam on hand-built typologies.
+    Gate expectations are patched to the fixture's own counts by the caller."""
+    data_dir = tmp_path / "data"
+    fixture = HiSmallFixture(tx_rows, account_rows)
+    files = hismall_files(fixture)
+    raw_dir = data_dir / "raw" / "hi-small"
+    raw_dir.mkdir(parents=True)
+    for name, data in files.items():
+        (raw_dir / name).write_bytes(data)
+    _write_manifest(data_dir, "hi-small", files, license_note="fixture", source_note="fixture")
+    return data_dir
+
+
 # --- shared seam helpers ---------------------------------------------------------
 
 

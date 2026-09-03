@@ -1,1 +1,1 @@
-"""Track data subpackage: download (C1), manifest (C2), ingest (C3), gates (C4)."""
+"""Track data subpackage: download, manifest, ingest, gates."""

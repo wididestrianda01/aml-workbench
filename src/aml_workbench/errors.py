@@ -10,12 +10,12 @@ class AmlWorkbenchError(Exception):
 
 
 class DownloadError(AmlWorkbenchError):
-    """C1: every download channel for a dataset failed (or drift was detected)."""
+    """Every download channel for a dataset failed (or drift was detected)."""
 
 
 class DataQualityError(AmlWorkbenchError):
-    """C2/C4: checksum, byte-size, schema, or count assertion violation."""
+    """Checksum, byte-size, schema, or count assertion violation."""
 
 
 class SmokeGateError(AmlWorkbenchError):
-    """C5: smoke metrics below the gate or runtime over the limit."""
+    """Smoke metrics below the gate or runtime over the limit."""

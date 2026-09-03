@@ -1,4 +1,4 @@
-"""P1-05 seam tests: C4 Elliptic count assertions, fail-closed.
+"""Seam tests: Elliptic count assertions, fail-closed.
 
 Tests inject violations by monkeypatching the frozen config constants at
 runtime — never by editing them.
