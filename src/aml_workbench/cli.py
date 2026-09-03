@@ -20,6 +20,8 @@ import typer
 
 from aml_workbench import config
 from aml_workbench.errors import AmlWorkbenchError
+from aml_workbench.explain import run_shap
+from aml_workbench.model import decide_promotion, run_baselines, run_challenger, run_tuning
 
 app = typer.Typer(
     name="aml",
@@ -148,19 +150,42 @@ def graph_features(data_dir: DataDirOpt = None) -> None:
 @app.command()
 def baselines(data_dir: DataDirOpt = None) -> None:
     """LR/RF raw-feature baselines on the temporal split."""
-    _not_implemented("baselines")
+    root = _data_dir(data_dir)
+    try:
+        summary = run_baselines(root)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 
 @app.command()
 def challenger(data_dir: DataDirOpt = None) -> None:
     """LightGBM challenger vs baselines on predeclared PR-AUC."""
-    _not_implemented("challenger")
+    root = _data_dir(data_dir)
+    try:
+        params = run_tuning(root)
+        result = run_challenger(root, params=params)
+        decision_path = decide_promotion(root, result)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(
+        f"challenger: mean PR-AUC {result.mean_pr_auc:.4f} "
+        f"(best seed {result.best_seed}) -> {decision_path}"
+    )
 
 
 @app.command()
 def shap(data_dir: DataDirOpt = None) -> None:
     """SHAP summary on the best model."""
-    _not_implemented("shap")
+    root = _data_dir(data_dir)
+    try:
+        summary = run_shap(root)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 
 @app.command()

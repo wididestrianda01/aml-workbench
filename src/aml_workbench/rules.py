@@ -21,18 +21,16 @@ Design decisions (documented, not hidden):
   infrastructure and excluded from pairing (edges are also pre-deduplicated
   per account-counterparty-day). This bounds the join without changing the
   typology signal: communities are tight clusters, not hub traffic.
-- **Alert model** (spec Implementation Decisions): every scenario writes rows
-  of (scenario, entity, reason, details) into the `rule_alert` table — the
-  schema later fused with ML scores in the Phase-7 triage queue.
+- **Alert model**: every scenario writes rows of (scenario, entity, reason,
+  details) into the `rule_alert` table — the schema later fused with ML scores
+  in the triage queue.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import duckdb
-
-from aml_workbench import config
+from aml_workbench import config, db
 from aml_workbench.errors import DataQualityError
 
 _DAY = "date_trunc('day', tx_time)"
@@ -57,7 +55,7 @@ def _structuring_sql() -> str:
 SELECT
     'structuring' AS scenario,
     from_account AS entity,
-    'multiple sub-threshold payments in one day (split across counterparties)' AS reason,
+    'multiple sub-threshold payments in one day' AS reason,
     'txs=' || count(*)::VARCHAR
     || ';counterparties=' || count(DISTINCT to_account)::VARCHAR
     || ';total_usd=' || round(sum(amount_paid), 2)::VARCHAR
@@ -87,82 +85,84 @@ HAVING count(*) >= {config.VELOCITY_TX_COUNT}
 
 def _churn_sql() -> str:
     max_retained = config.CHURN_MAX_RETAINED_PCT
-    max_delay = config.CHURN_MAX_DELAY_H
     return f"""
 {_USD_TXS}
 , inflow AS (
-    SELECT row_number() OVER (ORDER BY tx_time, from_account, to_account) AS in_tx,
-           to_account AS acct,
-           tx_time,
-           amount_received,
-           {_DAY} AS day
+    SELECT to_account AS acct, {_DAY} AS day,
+           sum(amount_received) AS received_usd, min(tx_time) AS first_in
     FROM usd
+    GROUP BY 1, 2
 ),
 outflow AS (
-    SELECT from_account AS acct, tx_time, amount_paid FROM usd
+    SELECT from_account AS acct, {_DAY} AS day, tx_time, amount_paid
+    FROM usd
 ),
 matched AS (
+    -- Allocation-free pass-through accounting: inflows and outflows are each
+    -- summed exactly once per (account, day); an outflow only counts once it
+    -- follows the day's first inflow. A naive inflow-row x outflow-window join
+    -- would sum one payout against every inflow and inflate payout_ratio.
     SELECT
         i.acct,
         i.day,
-        i.amount_received,
-        sum(o.amount_paid) AS paid_out,
-        sum(o.amount_paid) / i.amount_received AS payout_ratio
+        i.received_usd,
+        sum(o.amount_paid) AS paid_out_usd,
+        sum(o.amount_paid) / i.received_usd AS payout_ratio
     FROM inflow i
     JOIN outflow o
       ON o.acct = i.acct
-     AND o.tx_time > i.tx_time
-     AND o.tx_time <= i.tx_time + INTERVAL {max_delay} HOUR
-    GROUP BY i.in_tx, i.acct, i.day, i.amount_received
-    HAVING sum(o.amount_paid) >= (1 - {max_retained}) * i.amount_received
+     AND date_trunc('day', o.tx_time) = i.day
+     AND o.tx_time >= i.first_in
+    GROUP BY i.acct, i.day, i.received_usd
+    HAVING sum(o.amount_paid) >= (1 - {max_retained}) * i.received_usd
 )
 SELECT
     'rapid-churn' AS scenario,
     acct AS entity,
-    'inflow paid out within {max_delay} h with minimal retention' AS reason,
-    'received_usd=' || round(amount_received, 2)::VARCHAR
-    || ';paid_out_usd=' || round(paid_out, 2)::VARCHAR
+    'inflow paid out the same day with minimal retention' AS reason,
+    'received_usd=' || round(received_usd, 2)::VARCHAR
+    || ';paid_out_usd=' || round(paid_out_usd, 2)::VARCHAR
     || ';retained_pct=' || round(100 * (1 - payout_ratio), 1)::VARCHAR
     || ';window=' || strftime(day, '%Y-%m-%d') AS details
 FROM matched
-QUALIFY row_number() OVER (
-    PARTITION BY acct, day ORDER BY payout_ratio DESC
-) = 1
+"""
+
+
+def _fan_sql(scenario: str, entity_col: str, cpty_col: str, reason: str) -> str:
+    """Shared fan-in/fan-out shape: per-account daily concentration, differing
+    only in which side of the transaction is the alerted entity."""
+    return f"""
+{_USD_TXS}
+SELECT
+    '{scenario}' AS scenario,
+    {entity_col} AS entity,
+    '{reason}' AS reason,
+    'counterparties=' || count(DISTINCT {cpty_col})::VARCHAR
+    || ';total_usd=' || round(sum(amount_paid), 2)::VARCHAR
+    || ';window=' || strftime({_DAY}, '%Y-%m-%d') AS details
+FROM usd
+GROUP BY {entity_col}, {_DAY}
+HAVING count(DISTINCT {cpty_col}) >= {config.FAN_MIN_COUNTERPARTIES}
+   AND sum(amount_paid) >= {config.FAN_MIN_AMOUNT_USD}
 """
 
 
 def _fan_in_sql() -> str:
-    return f"""
-{_USD_TXS}
-SELECT
-    'fan-in' AS scenario,
-    to_account AS entity,
-    'many distinct counterparties paying into one account in one day' AS reason,
-    'counterparties=' || count(DISTINCT from_account)::VARCHAR
-    || ';total_usd=' || round(sum(amount_paid), 2)::VARCHAR
-    || ';window=' || strftime({_DAY}, '%Y-%m-%d') AS details
-FROM usd
-GROUP BY to_account, {_DAY}
-HAVING count(DISTINCT from_account) >= {config.FAN_MIN_COUNTERPARTIES}
-   AND sum(amount_paid) >= {config.FAN_MIN_AMOUNT_USD}
-"""
+    return _fan_sql(
+        "fan-in",
+        "to_account",
+        "from_account",
+        "many distinct counterparties paying into one account in one day",
+    )
 
 
 def _fan_out_sql() -> str:
-    return f"""
-{_USD_TXS}
-SELECT
-    'fan-out' AS scenario,
-    from_account AS entity,
-    'one account paying out to many distinct counterparties in one day' AS reason,
-    'counterparties=' || count(DISTINCT to_account)::VARCHAR
-    || ';total_usd=' || round(sum(amount_paid), 2)::VARCHAR
-    || ';window=' || strftime({_DAY}, '%Y-%m-%d') AS details
-FROM usd
-GROUP BY from_account, {_DAY}
-HAVING count(DISTINCT to_account) >= {config.FAN_MIN_COUNTERPARTIES}
-   AND sum(amount_paid) >= {config.FAN_MIN_AMOUNT_USD}
-"""
+    return _fan_sql(
+        "fan-out",
+        "from_account",
+        "to_account",
+        "one account paying out to many distinct counterparties in one day",
+    )
 
 
 def _circular_sql() -> str:
@@ -299,35 +299,17 @@ _SCENARIOS: tuple[str, ...] = (
 )
 
 
-def _one(con: duckdb.DuckDBPyConnection, sql: str) -> int:
-    """Fetch a single integer scalar (count queries); fail-closed on absence."""
-    rows = con.execute(sql).fetchall()
-    return int(rows[0][0])
-
-
-def _open_workbench(data_dir: Path) -> duckdb.DuckDBPyConnection:
-    db_path = data_dir / "workbench.duckdb"
-    if not db_path.exists():
-        raise DataQualityError(
-            f"workbench database not found at {db_path}; run `aml ingest` first"
-        )
-    con = duckdb.connect(str(db_path))
-    tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
-    if "hismall_transaction" not in tables:
-        con.close()
-        raise DataQualityError(
-            "hismall_transaction table missing; run `aml ingest --track hi-small` first"
-        )
-    if _one(con, "SELECT count(*) FROM hismall_transaction") == 0:
-        con.close()
-        raise DataQualityError("hismall_transaction is empty; refusing to run scenarios")
-    return con
 
 
 def run_rules(data_dir: Path) -> str:
     """Evaluate every scenario and write the `rule_alert` table. Fail-closed:
     missing database/tables raise DataQualityError before any output exists."""
-    con = _open_workbench(data_dir)
+    con = db.open_workbench(
+        data_dir, {"hismall_transaction": "run `aml ingest --track hi-small` first"}
+    )
+    if db.scalar(con, "SELECT count(*) FROM hismall_transaction") == 0:
+        con.close()
+        raise DataQualityError("hismall_transaction is empty; refusing to run scenarios")
     try:
         con.execute(
             "CREATE OR REPLACE TABLE rule_alert AS "
@@ -340,8 +322,8 @@ def run_rules(data_dir: Path) -> str:
             raise DataQualityError(
                 f"rule_alert schema invariant violated: got {sorted(columns)}"
             )
-        alert_count = _one(con, "SELECT count(*) FROM rule_alert")
-        scenario_count = _one(
+        alert_count = db.scalar(con, "SELECT count(*) FROM rule_alert")
+        scenario_count = db.scalar(
             con, "SELECT count(DISTINCT scenario) FROM rule_alert"
         )
     finally:

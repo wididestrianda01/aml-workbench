@@ -55,6 +55,15 @@ HI_SMALL_LAUNDERING_RATE_TARGET = 1 / 981
 HI_SMALL_LAUNDERING_RATE_TOLERANCE = 0.05  # +/- 5% band around 1-in-981
 HI_SMALL_LAUNDERING_COUNT_PINNED = 5_177  # exact pinned observed count (2026-09-03)
 
+# --- PyG mirror (Elliptic fallback channel) -----------------------------------
+# Byte sizes of the served zips, verified 2026-09-02; re-asserted on download.
+
+PYG_MIRROR_ZIP_BYTES: dict[str, int] = {
+    "elliptic_txs_features.csv.zip": 150_601_883,
+    "elliptic_txs_edgelist.csv.zip": 1_690_631,
+    "elliptic_txs_classes.csv.zip": 925_698,
+}
+
 # --- Smoke gate -------------------------------------------------------------
 
 SMOKE_ROC_AUC_GATE = 0.80  # dossier: Weber RF ~0.87-0.90; working pipeline clears 0.80
@@ -67,10 +76,33 @@ SMOKE_SEED = 42
 
 GRAPH_SEED = 42  # Louvain community partition seed (deterministic re-runs)
 FEATURE_COUNT = 165
+MODEL_SEEDS: tuple[int, ...] = (42, 7, 2026)  # >= 3 seeds recorded for every model
+LGBM_N_ESTIMATORS = 400
+LGBM_LEARNING_RATE = 0.05
+LGBM_NUM_LEAVES = 31
+# promote the challenger only above this PR-AUC gain over the best baseline
+CHALLENGER_MIN_PR_AUC_GAIN = 0.01
+SHAP_SAMPLE_ROWS = 20_000  # seeded subsample of test rows for the summary
+# --- MLflow tracking ---------------------------------------------------------
+MLFLOW_DB_NAME = "mlflow.db"  # sqlite tracking store under the data root
+
+# --- Challenger tuning --------------------------------------------------------
+# Deterministic grid, selected on a validation slice carved from TRAIN steps only:
+# train 1-30 / validate 31-34 / test 35-49. The test side never enters selection.
+TUNING_TRAIN_STEP_MAX = 30
+TUNING_VAL_STEP_MIN = 31
+TUNING_VAL_STEP_MAX = 34
+TUNING_EARLY_STOPPING_ROUNDS = 50
+LGBM_GRID: dict[str, tuple[float | int, ...]] = {
+    "num_leaves": (15, 31, 63),
+    "learning_rate": (0.05, 0.1),
+    "min_child_samples": (20, 50),
+    "feature_fraction": (0.8, 1.0),
+}
 
 # --- Rules scenarios (Track B, HI-Small) -------------------------------
 # Scenario thresholds are frozen here and tuned per scenario via
-# `aml alert-stats` (spec user story 10). Amount comparisons are US Dollar
+# `aml alert-stats`. Amount comparisons are US Dollar
 # only: HI-Small amounts are native-currency and only comparable within one.
 
 REPORTING_THRESHOLD_USD = 10_000.0  # CTR-style reporting threshold (US BSA)
@@ -78,7 +110,6 @@ STRUCTURING_MIN_USD = 9_000.0  # "just below" band floor
 STRUCTURING_TX_COUNT = 3  # >= 3 sub-threshold payments from one account per day
 VELOCITY_TX_COUNT = 20  # >= 20 outgoing transactions in one day (precision-tuned)
 CHURN_MAX_RETAINED_PCT = 0.10  # round trip keeps <= 10% of the inflow
-CHURN_MAX_DELAY_H = 24  # payout must follow the inflow within 24 h
 FAN_MIN_COUNTERPARTIES = 5  # distinct counterparties in one day window
 FAN_MIN_AMOUNT_USD = 50_000.0  # aggregate in the same day window
 CYCLE_MAX_LENGTH = 3  # bounded cycle search: 2- and 3-cycles only

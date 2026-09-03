@@ -3,19 +3,25 @@
 Writes the `tx_graph_features` model table — one row per transaction, keyed by
 txId VARCHAR — consumed identically by baselines, challenger, and the GNN.
 
-Strict inductive protocol: a transaction at time step t only ever sees edges
-whose *later* endpoint has step <= t. No future adjacency is reachable from any
-row's feature vector, so train rows (steps 1-34) and test rows (35-49) are
-symmetric under "graph known up to my own step" — no test-period adjacency can
-leak into training-time features.
+Point-in-time protocol (two layers, stated precisely):
+- **Per-tx visibility cutoff** for degrees, reciprocity, ego fractions, and
+  time_since_activity: a transaction at step t sees only edges whose *later*
+  endpoint has step <= t.
+- **Louvain community**: computed ONCE over the whole train-period graph
+  (steps 1-34) with a fixed seed. A train tx's community therefore reflects
+  train-period edges beyond its own step — that is the intended categorical
+  context feature, and it stays clear of the locked protocol: no TEST-period
+  adjacency (steps 35-49) enters training-time features. The two layers are
+  deliberately asymmetric: local features are per-tx point-in-time, community
+  is train-graph-wide context.
 
-Feature set (spec Phase 3):
+Feature set:
 - in_degree / out_degree at the tx's own step
 - reciprocity: fraction of incident edges whose reverse edge exists
 - ego illicit fraction 1-hop / 2-hop: illicit neighbours over ALL neighbours
   (unknown-class nodes are graph context and stay in the denominator)
-- louvain_community: Louvain id on the train-period graph (steps 1-34), fixed
-  seed; -1 when the tx has no train-period presence (categorical downstream)
+- louvain_community: train-period Louvain id; -1 when the tx has no
+  train-period presence (categorical downstream)
 - time_since_activity: tx step minus the most recent strictly-earlier
   neighbour step; 0 when no earlier neighbour exists
 """
@@ -27,7 +33,7 @@ from pathlib import Path
 import duckdb
 import networkx as nx
 
-from aml_workbench import config
+from aml_workbench import config, db
 from aml_workbench.errors import DataQualityError
 
 _FEATURE_COLUMNS = (
@@ -41,33 +47,6 @@ _FEATURE_COLUMNS = (
 )
 
 
-def _open_graph_db(data_dir: Path) -> duckdb.DuckDBPyConnection:
-    db_path = data_dir / "workbench.duckdb"
-    if not db_path.exists():
-        raise DataQualityError(
-            f"workbench database not found at {db_path}; run `aml ingest` first"
-        )
-    con = duckdb.connect(str(db_path), read_only=True)
-    tables = {
-        row[0]
-        for row in con.execute(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'"
-        ).fetchall()
-    }
-    required = {"elliptic_tx", "elliptic_tx_features", "elliptic_edge"}
-    if not required <= tables:
-        con.close()
-        raise DataQualityError(
-            f"DuckDB store {db_path} lacks Elliptic ingest tables {sorted(required)}; "
-            "run `aml ingest --track elliptic` first."
-        )
-    return con
-
-
-def _scalar(con: duckdb.DuckDBPyConnection, sql: str) -> int:
-    """Fetch a single integer scalar (gate count queries)."""
-    rows = con.execute(sql).fetchall()
-    return int(rows[0][0])
 
 
 def _illicit_fraction(neighbours: set[str], labels: dict[str, int | None]) -> float:
@@ -177,7 +156,15 @@ def run_graph_features(data_dir: Path) -> str:
     """Compute graph features and write `tx_graph_features`. Fail-closed:
     missing tables, dangling edges, row-count mismatch, or NULLs in required
     features raise DataQualityError before the command reports success."""
-    con = _open_graph_db(data_dir)
+    con = db.open_workbench(
+        data_dir,
+        {
+            "elliptic_tx": "run `aml ingest --track elliptic` first",
+            "elliptic_tx_features": "run `aml ingest --track elliptic` first",
+            "elliptic_edge": "run `aml ingest --track elliptic` first",
+        },
+        read_only=True,
+    )
     try:
         edges = [
             (str(src), str(dst))
@@ -217,14 +204,14 @@ def run_graph_features(data_dir: Path) -> str:
         )
 
         # Completeness gate: exactly one row per tx, no NULLs, tx sets equal.
-        n_rows = _scalar(con, "SELECT count(*) FROM tx_graph_features")
-        n_tx = _scalar(con, "SELECT count(*) FROM elliptic_tx_features")
+        n_rows = db.scalar(con, "SELECT count(*) FROM tx_graph_features")
+        n_tx = db.scalar(con, "SELECT count(*) FROM elliptic_tx_features")
         if n_rows != n_tx:
             raise DataQualityError(
                 f"tx_graph_features has {n_rows} rows for {n_tx} txs in "
                 "elliptic_tx_features; feature coverage is incomplete."
             )
-        missing = _scalar(
+        missing = db.scalar(
             con,
             "SELECT count(*) FROM ("
             "  (SELECT tx_id FROM elliptic_tx_features EXCEPT"
@@ -240,7 +227,7 @@ def run_graph_features(data_dir: Path) -> str:
                 "elliptic_tx_features."
             )
         null_check = " OR ".join(f"{name} IS NULL" for name, _ in _FEATURE_COLUMNS)
-        nulls = _scalar(
+        nulls = db.scalar(
             con, f"SELECT count(*) FROM tx_graph_features WHERE {null_check}"
         )
         if nulls != 0:

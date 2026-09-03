@@ -18,7 +18,7 @@ from pathlib import Path
 
 import duckdb
 
-from aml_workbench import config
+from aml_workbench import config, db
 from aml_workbench.data.gates import (
     assert_class_feature_id_sets_equal,
     assert_edge_referential_integrity,
@@ -26,7 +26,6 @@ from aml_workbench.data.gates import (
     assert_hi_small_counts,
 )
 from aml_workbench.data.manifest import load_manifest, pins_for, verify_raw_files
-from aml_workbench.errors import DataQualityError
 
 ELLIPTIC_FEATURE_COLUMNS: dict[str, str] = {
     "txId": "VARCHAR",
@@ -71,11 +70,6 @@ def _read_csv(path: Path, cols: dict[str, str], *, header: bool) -> str:
     )
 
 
-def _scalar(con: duckdb.DuckDBPyConnection, sql: str) -> int:
-    row = con.execute(sql).fetchone()
-    if row is None or row[0] is None:
-        raise DataQualityError(f"Gate query returned no value: {sql}")
-    return int(row[0])
 
 
 # --- Elliptic -----------------------------------------------------------------
@@ -100,7 +94,7 @@ def ingest_elliptic(data_dir: Path, db_path: Path) -> list[str]:
     # Count assertions against in-memory reads, before any artifact is written.
     mem = duckdb.connect(":memory:")
     try:
-        tx_count = _scalar(mem, f"SELECT count(*) FROM {features_csv}")
+        tx_count = db.scalar(mem, f"SELECT count(*) FROM {features_csv}")
         class_rows = mem.execute(
             f"SELECT class, count(*) FROM {classes_csv} GROUP BY class"
         ).fetchall()
@@ -118,8 +112,8 @@ def ingest_elliptic(data_dir: Path, db_path: Path) -> list[str]:
             f"SELECT DISTINCT time_step FROM {features_csv}"
         ).fetchall()
         steps = {int(r[0]) for r in step_rows}
-        edge_count = _scalar(mem, f"SELECT count(*) FROM {edges_csv}")
-        orphan_endpoints = _scalar(
+        edge_count = db.scalar(mem, f"SELECT count(*) FROM {edges_csv}")
+        orphan_endpoints = db.scalar(
             mem,
             f"""
             WITH e AS (SELECT txId1 AS a, txId2 AS b FROM {edges_csv}),
@@ -131,12 +125,12 @@ def ingest_elliptic(data_dir: Path, db_path: Path) -> list[str]:
             )
             """,
         )
-        only_in_classes = _scalar(
+        only_in_classes = db.scalar(
             mem,
             f"SELECT count(*) FROM "
             f"(SELECT txId FROM {classes_csv} EXCEPT SELECT txId FROM {features_csv})",
         )
-        only_in_features = _scalar(
+        only_in_features = db.scalar(
             mem,
             f"SELECT count(*) FROM "
             f"(SELECT txId FROM {features_csv} EXCEPT SELECT txId FROM {classes_csv})",
@@ -218,8 +212,8 @@ def ingest_hismall(data_dir: Path, db_path: Path) -> list[str]:
 
     mem = duckdb.connect(":memory:")
     try:
-        tx_count = _scalar(mem, f"SELECT count(*) FROM {trans_csv}")
-        account_count = _scalar(
+        tx_count = db.scalar(mem, f"SELECT count(*) FROM {trans_csv}")
+        account_count = db.scalar(
             mem,
             f"""
             SELECT count(*) FROM (
@@ -229,10 +223,10 @@ def ingest_hismall(data_dir: Path, db_path: Path) -> list[str]:
             )
             """,
         )
-        laundering_count = _scalar(
+        laundering_count = db.scalar(
             mem, f"SELECT COALESCE(sum(is_laundering), 0) FROM {trans_csv}"
         )
-        account_rows = _scalar(mem, f"SELECT count(*) FROM {accounts_csv}")
+        account_rows = db.scalar(mem, f"SELECT count(*) FROM {accounts_csv}")
     finally:
         mem.close()
 

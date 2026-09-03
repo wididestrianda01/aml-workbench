@@ -13,6 +13,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from aml_workbench import config
 from aml_workbench.cli import app
 from aml_workbench.data import download as dl
 from aml_workbench.errors import DownloadError
@@ -82,7 +83,7 @@ def test_fallback_with_pinned_sizes_succeeds(tmp_path: Path, monkeypatch) -> Non
     zips = _mirror_zips(files)
     monkeypatch.setattr(dl, "fetch_kaggle_dataset_zip", _fail_kaggle_zip)
     monkeypatch.setattr(
-        dl, "PYG_MIRROR_ZIP_BYTES", {name: len(data) for name, data in zips.items()}
+        config, "PYG_MIRROR_ZIP_BYTES", {name: len(data) for name, data in zips.items()}
     )
 
     def fake_fetch_url(url: str, dest: Path) -> None:

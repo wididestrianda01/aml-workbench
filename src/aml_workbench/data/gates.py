@@ -35,7 +35,12 @@ def assert_elliptic_counts(
     for label, expected in config.EXPECTED_CLASS_COUNTS.items():
         actual = class_counts.get(label)
         name = "unknown" if label is None else ("illicit" if label == 1 else "licit")
-        assert_count(actual if actual is not None else -1, expected, f"elliptic class {name}")
+        if actual is None:
+            raise DataQualityError(
+                f"Count gate failed for elliptic class {name}: "
+                f"expected {expected}, got missing (no rows reported)."
+            )
+        assert_count(actual, expected, f"elliptic class {name}")
     if set(steps) != set(config.EXPECTED_TIME_STEPS):
         missing = sorted(set(config.EXPECTED_TIME_STEPS) - set(steps))
         extra = sorted(set(steps) - set(config.EXPECTED_TIME_STEPS))

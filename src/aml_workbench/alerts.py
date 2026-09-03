@@ -3,41 +3,25 @@
 
 Reads the `rule_alert` table written by `aml rules`, materializes per-scenario
 counts into `alert_scenario_stats`, and renders the one-page alert-statistics
-report artifact (the Phase-2 evidence). Threshold tuning is per scenario
-exactly because these stats exist (spec user story 10).
+report artifact. Threshold tuning is per scenario exactly because these stats
+exist.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import duckdb
-
+from aml_workbench import db
 from aml_workbench.errors import DataQualityError
 from aml_workbench.report import render_alert_stats_report
-from aml_workbench.rules import _one
-
-
-def _open_with_alerts(data_dir: Path) -> duckdb.DuckDBPyConnection:
-    db_path = data_dir / "workbench.duckdb"
-    if not db_path.exists():
-        raise DataQualityError(
-            f"workbench database not found at {db_path}; run `aml ingest` first"
-        )
-    con = duckdb.connect(str(db_path))
-    tables = {row[0] for row in con.execute("SHOW TABLES").fetchall()}
-    if "rule_alert" not in tables:
-        con.close()
-        raise DataQualityError("rule_alert table missing; run `aml rules` first")
-    return con
 
 
 def run_alert_stats(data_dir: Path) -> Path:
     """Compute per-scenario alert statistics and write the report artifact.
     Fail-closed: missing database or alert table raises DataQualityError."""
-    con = _open_with_alerts(data_dir)
+    con = db.open_workbench(data_dir, {"rule_alert": "run `aml rules` first"})
     try:
-        if _one(con, "SELECT count(*) FROM rule_alert") == 0:
+        if db.scalar(con, "SELECT count(*) FROM rule_alert") == 0:
             con.close()
             raise DataQualityError(
                 "rule_alert is empty; every scenario fired zero alerts — check "

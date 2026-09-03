@@ -21,6 +21,7 @@ from pathlib import Path
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
+from aml_workbench import config
 from aml_workbench.data.manifest import record_downloaded_files, sha256_of
 from aml_workbench.errors import DownloadError
 
@@ -37,12 +38,6 @@ ELLIPTIC_FILES = (
 )
 HI_SMALL_FILES = ("HI-Small_Trans.csv", "HI-Small_accounts.csv")
 
-# PyG mirror serves zips; byte sizes pinned in the spec/manifest (verified 2026-09-02).
-PYG_MIRROR_ZIP_BYTES = {
-    "elliptic_txs_features.csv.zip": 150_601_883,
-    "elliptic_txs_edgelist.csv.zip": 1_690_631,
-    "elliptic_txs_classes.csv.zip": 925_698,
-}
 
 ELLIPTIC_LICENSE = (
     "CC BY-NC-ND 4.0 (attribution, non-commercial, no derivatives; local use only - "
@@ -137,7 +132,7 @@ def _download_elliptic(raw_dir: Path) -> list[DownloadResult]:
         try:
             for name in ELLIPTIC_FILES:
                 zip_name = f"{name}.zip"
-                pinned = PYG_MIRROR_ZIP_BYTES[zip_name]
+                pinned = config.PYG_MIRROR_ZIP_BYTES[zip_name]
                 archive = tmp_dir / zip_name
                 fetch_url(f"{PYG_MIRROR_BASE}/{zip_name}", archive)
                 actual = archive.stat().st_size
@@ -197,40 +192,34 @@ def _finalize(
     return results
 
 
-def run_download(
-    data_dir: Path,
-    dataset: str = "all",
-    *,
-    skip_manifest_record: bool = False,
-) -> list[DownloadResult]:
+def run_download(data_dir: Path, dataset: str = "all") -> list[DownloadResult]:
     """Download the requested datasets and record/verify frozen manifest pins."""
     results: list[DownloadResult] = []
     if dataset in ("elliptic", "all"):
         results += _download_elliptic(data_dir / "raw" / "elliptic")
     if dataset in ("hi-small", "all"):
         results += _download_hi_small(data_dir / "raw" / "hi-small")
-    if not skip_manifest_record:
-        if dataset in ("elliptic", "all"):
-            record_downloaded_files(
-                data_dir,
-                "elliptic",
-                [
-                    (r.name, r.size, r.sha256, r.channel)
-                    for r in results
-                    if r.dataset == "elliptic"
-                ],
-                license_note=ELLIPTIC_LICENSE,
-                source_note=(
-                    f"Kaggle {ELLIPTIC_SLUG} (primary); "
-                    f"PyG mirror {PYG_MIRROR_BASE} (fallback)"
-                ),
-            )
-        if dataset in ("hi-small", "all"):
-            record_downloaded_files(
-                data_dir,
-                "hi-small",
-                [(r.name, r.size, r.sha256, r.channel) for r in results if r.dataset == "hi-small"],
-                license_note=HI_SMALL_LICENSE,
-                source_note=f"Kaggle {HI_SMALL_SLUG}",
-            )
+    if dataset in ("elliptic", "all"):
+        record_downloaded_files(
+            data_dir,
+            "elliptic",
+            [
+                (r.name, r.size, r.sha256, r.channel)
+                for r in results
+                if r.dataset == "elliptic"
+            ],
+            license_note=ELLIPTIC_LICENSE,
+            source_note=(
+                f"Kaggle {ELLIPTIC_SLUG} (primary); "
+                f"PyG mirror {PYG_MIRROR_BASE} (fallback)"
+            ),
+        )
+    if dataset in ("hi-small", "all"):
+        record_downloaded_files(
+            data_dir,
+            "hi-small",
+            [(r.name, r.size, r.sha256, r.channel) for r in results if r.dataset == "hi-small"],
+            license_note=HI_SMALL_LICENSE,
+            source_note=f"Kaggle {HI_SMALL_SLUG}",
+        )
     return results

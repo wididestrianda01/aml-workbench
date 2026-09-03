@@ -14,7 +14,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import duckdb
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.ensemble import RandomForestClassifier
@@ -23,7 +22,8 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
 from aml_workbench import config
-from aml_workbench.errors import DataQualityError, SmokeGateError
+from aml_workbench.errors import SmokeGateError
+from aml_workbench.model import load_labeled, split_temporal
 from aml_workbench.report import render_smoke_report
 
 
@@ -47,53 +47,6 @@ class SmokeResult:
     passed: bool
 
 
-def _load_labeled(
-    db_path: Path,
-) -> tuple[NDArray[np.float64], NDArray[np.int64], NDArray[np.int64]]:
-    """Labeled rows only: X (n, 165), y (illicit=1), steps — ordered by tx_id."""
-    feature_cols = ", ".join(f"f{i:03d}" for i in range(1, config.FEATURE_COUNT + 1))
-    query = f"""
-        SELECT f.time_step, t.class_label, {feature_cols}
-        FROM elliptic_tx_features f
-        JOIN elliptic_tx t USING (tx_id)
-        WHERE t.class_label IS NOT NULL
-        ORDER BY f.tx_id
-    """
-    con = duckdb.connect(str(db_path), read_only=True)
-    try:
-        tables = {
-            r[0]
-            for r in con.execute(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'"
-            ).fetchall()
-        }
-        required = {"elliptic_tx", "elliptic_tx_features"}
-        if not required <= tables:
-            raise DataQualityError(
-                f"DuckDB store {db_path} lacks Elliptic ingest tables {sorted(required)}; "
-                "run 'aml ingest' first."
-            )
-        rows = con.execute(query).fetchnumpy()
-    finally:
-        con.close()
-
-    steps = np.asarray(rows["time_step"], dtype=np.int64)
-    class_label = np.asarray(rows["class_label"], dtype=np.int64)
-    y = (class_label == 1).astype(np.int64)
-    feature_names = [f"f{i:03d}" for i in range(1, config.FEATURE_COUNT + 1)]
-    x = np.column_stack([np.asarray(rows[name], dtype=np.float64) for name in feature_names])
-    if np.isnan(x).any():
-        raise DataQualityError("NULL/NaN feature values found in the labeled smoke set.")
-    return x, y, steps
-
-
-def _split_temporal(steps: NDArray[np.int64]) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
-    """Locked temporal split: train steps 1-34, test steps 35-49. Never random."""
-    train_mask = steps <= config.TRAIN_STEP_MAX
-    test_mask = steps >= config.TEST_STEP_MIN
-    if not train_mask.any() or not test_mask.any():
-        raise DataQualityError("Temporal split produced an empty train or test side.")
-    return train_mask, test_mask
 
 
 def _fit_and_score(
@@ -145,8 +98,8 @@ def run_smoke(data_dir: Path) -> Path:
     gate (or over the runtime limit) raises SmokeGateError and writes nothing."""
     db_path = data_dir / "workbench.duckdb"
     started = time.monotonic()
-    x, y, steps = _load_labeled(db_path)
-    train_mask, test_mask = _split_temporal(steps)
+    x, y, steps, _ = load_labeled(db_path)
+    train_mask, test_mask = split_temporal(steps)
     metrics = _fit_and_score(x, y, train_mask, test_mask)
     runtime_s = time.monotonic() - started
 

@@ -21,8 +21,7 @@ _SPLIT_STATEMENT = (
 
 
 def render_smoke_report(result: SmokeResult) -> str:
-    """One-page smoke report: the Phase-1 evidence artifact, auditable without
-    reading code."""
+    """One-page smoke report: auditable without reading code."""
     lines = [
         "# Smoke Report",
         "",
@@ -52,7 +51,7 @@ def render_smoke_report(result: SmokeResult) -> str:
 
 
 def render_alert_stats_report(stats: list[tuple[str, int, int, float]]) -> str:
-    """One-page per-scenario alert statistics: the Phase-2 evidence artifact."""
+    """One-page per-scenario alert statistics report."""
     total_alerts = sum(int(row[1]) for row in stats)
     total_entities = sum(int(row[2]) for row in stats)
     lines = [
