@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "generated": "2026-09-03",
+  "note": "Frozen SHA-256 manifest with pinned byte sizes. Ingest refuses any mismatch. Data files themselves are git-ignored (Elliptic is CC BY-NC-ND 4.0: no redistribution). Hashes recorded at first successful download and never regenerated.",
+  "datasets": {
+    "elliptic": {
+      "license": "CC BY-NC-ND 4.0 (attribution, non-commercial, no derivatives; local use only - data/ is git-ignored for this reason)",
+      "source": "Kaggle ellipticco/elliptic-data-set (primary); PyG mirror https://data.pyg.org/datasets/elliptic/ (fallback, per-file zips)",
+      "channel_pins": {
+        "pyg_mirror_zip_bytes": {
+          "elliptic_txs_features.csv.zip": 150601883,
+          "elliptic_txs_edgelist.csv.zip": 1690631,
+          "elliptic_txs_classes.csv.zip": 925698
+        }
+      },
+      "files": {
+        "elliptic_txs_features.csv": {
+          "bytes": 689683771,
+          "sha256": "fd7f83573443c9e302e371d3f110e3b6224160f5d1ed8a287757936127800ff0",
+          "channel": "kaggle"
+        },
+        "elliptic_txs_edgelist.csv": {
+          "bytes": 4470584,
+          "sha256": "a35053ba68a98e4382cae2ba65b9d9e36b23b6439e02dff084971b1b72a5156e",
+          "channel": "kaggle"
+        },
+        "elliptic_txs_classes.csv": {
+          "bytes": 3305144,
+          "sha256": "93e2e7b2405c735ba752bf6ba06b947561deddd1f5a8fc91e46f6a4c0e439493",
+          "channel": "kaggle"
+        }
+      }
+    },
+    "hi-small": {
+      "license": "CDLA-Sharing-1.0 (derived artifacts shareable with attribution)",
+      "source": "Kaggle ealtman2019/ibm-transactions-for-anti-money-laundering-aml (single channel; failure is fail-closed)",
+      "files": {
+        "HI-Small_Trans.csv": {
+          "bytes": 475664283,
+          "sha256": "b19d39f515523373f991b689c07e11e7b0b95c17a2c27a87d91584ae16c5b040",
+          "channel": "kaggle"
+        },
+        "HI-Small_accounts.csv": {
+          "bytes": 34053187,
+          "sha256": "786808526e33cfc441212dd6fccda7edfc24172149bed59c6ef59b186836b014",
+          "channel": "kaggle"
+        }
+      }
+    }
+  }
+}
