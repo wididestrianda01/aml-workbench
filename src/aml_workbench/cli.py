@@ -134,7 +134,15 @@ def alert_stats(data_dir: DataDirOpt = None) -> None:
 @app.command()
 def graph_features(data_dir: DataDirOpt = None) -> None:
     """NetworkX graph features over the Elliptic temporal graph."""
-    _not_implemented("graph-features")
+    from aml_workbench.graph import run_graph_features
+
+    root = _data_dir(data_dir)
+    try:
+        summary = run_graph_features(root)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 
 @app.command()

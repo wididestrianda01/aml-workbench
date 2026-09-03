@@ -29,7 +29,7 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _write_manifest(
+def write_manifest(
     data_dir: Path,
     dataset: str,
     files: dict[str, bytes],
@@ -124,7 +124,7 @@ def elliptic_data_dir(tmp_path: Path) -> Path:
     raw_dir.mkdir(parents=True)
     for name, data in files.items():
         (raw_dir / name).write_bytes(data)
-    _write_manifest(data_dir, "elliptic", files, license_note="fixture", source_note="fixture")
+    write_manifest(data_dir, "elliptic", files, license_note="fixture", source_note="fixture")
     return data_dir
 
 
@@ -177,7 +177,7 @@ def hismall_data_dir(tmp_path: Path) -> Path:
     raw_dir.mkdir(parents=True)
     for name, data in files.items():
         (raw_dir / name).write_bytes(data)
-    _write_manifest(data_dir, "hi-small", files, license_note="fixture", source_note="fixture")
+    write_manifest(data_dir, "hi-small", files, license_note="fixture", source_note="fixture")
     return data_dir
 
 
@@ -195,7 +195,7 @@ def make_hismall_data_dir(
     raw_dir.mkdir(parents=True)
     for name, data in files.items():
         (raw_dir / name).write_bytes(data)
-    _write_manifest(data_dir, "hi-small", files, license_note="fixture", source_note="fixture")
+    write_manifest(data_dir, "hi-small", files, license_note="fixture", source_note="fixture")
     return data_dir
 
 

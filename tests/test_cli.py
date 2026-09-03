@@ -48,7 +48,6 @@ def test_help_exits_zero_and_lists_all_stages() -> None:
 
 
 def test_unimplemented_stage_fails_closed() -> None:
-    for stage in ["graph-features", "report"]:
-        result = runner.invoke(app, [stage])
-        assert result.exit_code == 1, f"{stage} must exit non-zero"
-        assert "not implemented" in _output(result)
+    result = runner.invoke(app, ["report"])
+    assert result.exit_code == 1, "report must exit non-zero"
+    assert "not implemented" in _output(result)

@@ -64,6 +64,8 @@ SMOKE_SEED = 42
 # File-verified 2026-09-03: the released features CSV has 167 fields
 # (txId, time_step, 165 feature columns); PyG slices [:, 2:] to a 165-dim x.
 # The literature's "166 features" does not match the shipped file - the file wins.
+
+GRAPH_SEED = 42  # Louvain community partition seed (deterministic re-runs)
 FEATURE_COUNT = 165
 
 # --- Rules scenarios (Track B, HI-Small) -------------------------------
