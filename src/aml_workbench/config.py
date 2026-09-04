@@ -141,3 +141,19 @@ CYCLE_AMOUNT_TOLERANCE = 0.10  # +/- 10% amount preservation around the cycle
 CYCLE_MIN_LEG_USD = 1_000.0  # minimum daily leg amount entering cycle search
 COMMUNITY_MIN_SHARED_COUNTERPARTIES = 5  # shared counterparties in one day
 COMMUNITY_MAX_HUB_DEGREE = 64  # daily counterparty degree cap before pairing
+
+# --- Alert triage (Track B, HI-Small) ----------------------------------------
+# Walk-forward task: account behavior before a cutoff predicts laundering
+# involvement after it. Cut points sit at fixed fractions of the observed
+# timeline (day-based, computed from the data at run time, never random):
+# train features @ cut1 -> labels in (cut1, cut2]; test features @ cut2 ->
+# labels after cut2. Alert scoring uses the latest account history strictly
+# before each alert's own day, so no alert ever sees its own window.
+
+TRIAGE_TRAIN_CUT_PCT = 0.60
+TRIAGE_TEST_CUT_PCT = 0.80
+FUSION_ML_WEIGHT = 0.60
+FUSION_RULE_WEIGHT = 0.40
+TRIAGE_OPERATING_K = 500  # alerts investigated per day at the operating point
+PRECISION_AT_K: tuple[int, ...] = (100, 500, 1000)
+INVESTIGATION_COST_USD = 50.0  # fully-loaded cost of working one alert

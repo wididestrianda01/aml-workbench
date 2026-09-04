@@ -47,7 +47,8 @@ def test_help_exits_zero_and_lists_all_stages() -> None:
         assert stage in _output(result), f"stage '{stage}' missing from --help"
 
 
-def test_unimplemented_stage_fails_closed() -> None:
-    result = runner.invoke(app, ["report"])
-    assert result.exit_code == 1, "report must exit non-zero"
-    assert "not implemented" in _output(result)
+def test_fail_closed_contract_on_missing_data(tmp_path) -> None:
+    # every stage is implemented; the fail-closed contract (missing artifacts
+    # -> exit 1) is covered per stage, sampled here
+    result = runner.invoke(app, ["track", "--data-dir", str(tmp_path)])
+    assert result.exit_code == 1

@@ -63,7 +63,8 @@ def test_challenger_trains_tunes_and_decides(tmp_path: Path) -> None:
     assert (tmp_path / "models" / "challenger.joblib").is_file()
 
     tuning = json.loads((tmp_path / "reports" / "tuning_params.json").read_text(encoding="utf-8"))
-    assert set(tuning) == set(config.LGBM_GRID)
+    assert set(tuning) >= set(config.LGBM_GRID)
+    assert {"bagging_fraction", "bagging_freq"} <= set(tuning)  # fixed, rides with winner
 
     decision = (tmp_path / "reports" / "decision_report.md").read_text(encoding="utf-8")
     assert re.search(r"\*\*(promote|retain)\*\*", decision)

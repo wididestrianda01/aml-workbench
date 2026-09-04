@@ -11,6 +11,8 @@ gate violations exit non-zero before any downstream output is written.
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from enum import StrEnum
 from pathlib import Path
@@ -22,6 +24,9 @@ from aml_workbench import config
 from aml_workbench.errors import AmlWorkbenchError
 from aml_workbench.explain import run_shap
 from aml_workbench.model import decide_promotion, run_baselines, run_challenger, run_tuning
+from aml_workbench.report import run_report
+from aml_workbench.tracking import run_track
+from aml_workbench.triage import run_triage
 
 app = typer.Typer(
     name="aml",
@@ -235,25 +240,48 @@ def gnn(data_dir: DataDirOpt = None) -> None:
 @app.command()
 def triage(data_dir: DataDirOpt = None) -> None:
     """Fused rule+ML alert queue + operational KPIs."""
-    _not_implemented("triage")
+    try:
+        summary = run_triage(_data_dir(data_dir))
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 
 @app.command()
 def view(data_dir: DataDirOpt = None) -> None:
     """Thin Streamlit triage view."""
-    _not_implemented("view")
+    resolved = _data_dir(data_dir)
+    env = {**os.environ, config.DATA_DIR_ENV: str(resolved)}
+    app_path = Path(__file__).resolve().parents[2] / "app" / "triage.py"
+    raise typer.Exit(
+        subprocess.run(
+            [sys.executable, "-m", "streamlit", "run", str(app_path)],
+            env=env,
+            check=False,
 
-
+        ).returncode
+    )
 @app.command()
 def track(data_dir: DataDirOpt = None) -> None:
-    """MLflow tracking of model runs."""
-    _not_implemented("track")
+    """Versioned run manifest + MLflow lineage."""
+    try:
+        summary = run_track(_data_dir(data_dir))
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 
 @app.command()
 def report(data_dir: DataDirOpt = None) -> None:
-    """Technical report + interview brief + README."""
-    _not_implemented("report")
+    """Technical report + figures from stage artifacts."""
+    try:
+        summary = run_report(_data_dir(data_dir))
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 
 def main() -> None:  # pragma: no cover - thin entry point

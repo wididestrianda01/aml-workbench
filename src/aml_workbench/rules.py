@@ -42,6 +42,18 @@ from aml_workbench.errors import DataQualityError
 
 _DAY = "date_trunc('day', tx_time)"
 
+
+def _window_sql(day_col: str = _DAY) -> str:
+    """Emission side of the alert-day contract: every scenario appends
+    `;window=YYYY-MM-DD` to its details. The consumer side is ALERT_DAY_SQL
+    below — both live here so the rules -> triage contract has one home."""
+    return f"';window=' || strftime({day_col}, '%Y-%m-%d')"
+
+
+# Extraction side of the alert-day contract (see _window_sql): triage parses
+# the alert day out of `details` with this SQL expression.
+ALERT_DAY_SQL = "regexp_extract(details, 'window=([0-9]{4}-[0-9]{2}-[0-9]{2})', 1)"
+
 _USD_TXS = """
 WITH usd AS (
     SELECT * FROM hismall_transaction
@@ -66,7 +78,7 @@ SELECT
     || ';counterparties=' || count(DISTINCT to_account)::VARCHAR
     || ';total_usd=' || round(sum(amount_paid), 2)::VARCHAR
     || ';band_usd=[{min_usd:.0f},{threshold:.0f})'
-    || ';window=' || strftime({_DAY}, '%Y-%m-%d') AS details
+    || {_window_sql()} AS details
 FROM usd
 WHERE amount_paid >= {min_usd} AND amount_paid < {threshold}
 GROUP BY from_account, {_DAY}
@@ -82,7 +94,7 @@ SELECT
     from_account AS entity,
     'high outgoing transaction count in one day' AS reason,
     'txs=' || count(*)::VARCHAR
-    || ';window=' || strftime({_DAY}, '%Y-%m-%d') AS details
+    || {_window_sql()} AS details
 FROM all_tx
 GROUP BY from_account, {_DAY}
 HAVING count(*) >= {config.VELOCITY_TX_COUNT}
@@ -129,7 +141,7 @@ SELECT
     'received_usd=' || round(received_usd, 2)::VARCHAR
     || ';paid_out_usd=' || round(paid_out_usd, 2)::VARCHAR
     || ';retained_pct=' || round(100 * (1 - payout_ratio), 1)::VARCHAR
-    || ';window=' || strftime(day, '%Y-%m-%d') AS details
+    || {_window_sql('day')} AS details
 FROM matched
 """
 
@@ -145,7 +157,7 @@ SELECT
     '{reason}' AS reason,
     'counterparties=' || count(DISTINCT {cpty_col})::VARCHAR
     || ';total_usd=' || round(sum(amount_paid), 2)::VARCHAR
-    || ';window=' || strftime({_DAY}, '%Y-%m-%d') AS details
+    || {_window_sql()} AS details
 FROM usd
 GROUP BY {entity_col}, {_DAY}
 HAVING count(DISTINCT {cpty_col}) >= {config.FAN_MIN_COUNTERPARTIES}
@@ -250,7 +262,7 @@ SELECT DISTINCT
     || ';amt_out_usd=' || round(amt_out, 2)::VARCHAR
     || ';amt_back_usd=' || round(amt_back, 2)::VARCHAR
     || ';cycle_len=' || cycle_len::VARCHAR
-    || ';window=' || strftime(day, '%Y-%m-%d') AS details
+    || {_window_sql('day')} AS details
 FROM cycles
 """
 
@@ -288,7 +300,7 @@ SELECT
     'two accounts share an abnormal number of counterparties in one day' AS reason,
     'pair=' || acct || '|' || other_acct
     || ';shared_counterparties=' || shared::VARCHAR
-    || ';window=' || strftime(day, '%Y-%m-%d') AS details
+    || {_window_sql('day')} AS details
 FROM pairs
 """
 

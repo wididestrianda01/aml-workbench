@@ -30,7 +30,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import duckdb
 import networkx as nx
 
 from aml_workbench import config, db
@@ -181,8 +180,7 @@ def run_graph_features(data_dir: Path) -> str:
 
     columns = ", ".join(f"{name} {sql_type}" for name, sql_type in FEATURE_COLUMNS)
     placeholders = ", ".join("?" for _ in FEATURE_COLUMNS)
-    db_path = data_dir / "workbench.duckdb"
-    con = duckdb.connect(str(db_path))
+    con = db.open_workbench(data_dir, {})
     try:
         con.execute(f"CREATE OR REPLACE TABLE tx_graph_features (tx_id VARCHAR, {columns})")
         con.executemany(

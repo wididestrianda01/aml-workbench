@@ -287,7 +287,7 @@ def _export_parquet(
 
 def run_ingest(data_dir: Path, track: str = "all") -> list[str]:
     """Ingest entry point used by the CLI; dispatches on track."""
-    db_path = data_dir / "workbench.duckdb"
+    db_path = db.path(data_dir)
     stats: list[str] = []
     if track in ("elliptic", "all"):
         stats += ingest_elliptic(data_dir, db_path)

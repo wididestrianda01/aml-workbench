@@ -26,6 +26,7 @@ from torch_geometric.nn import SAGEConv
 
 from aml_workbench import config, db
 from aml_workbench.errors import DataQualityError
+from aml_workbench.model import split_temporal
 
 _PROTOCOL_NOTE = (
     "Strict-inductive GraphSAGE (PyG): message-passing edges restricted to "
@@ -142,8 +143,9 @@ def _train_one(
     torch.manual_seed(seed)
 
     labeled = (y == 1) | (y == 0)
-    train_mask = labeled & (steps <= config.TRAIN_STEP_MAX)
-    test_mask = labeled & (steps >= config.TEST_STEP_MIN)
+    train_mask, test_mask = split_temporal(steps)
+    train_mask &= labeled
+    test_mask &= labeled
     if not train_mask.any() or not test_mask.any():
         raise DataQualityError("Temporal split produced an empty train or test side.")
     _assert_no_lookahead(edge_index, steps)
@@ -189,8 +191,7 @@ def run_gnn(data_dir: Path) -> str:
     """Train the strict-inductive GraphSAGE baseline across the configured
     seeds; write gnn_metrics.json and the honest GNN-vs-GBM comparison.
     Fail-closed on missing tables or a missing challenger artifact."""
-    db_path = data_dir / "workbench.duckdb"
-    x, y, steps, edges = _load_graph(db_path)
+    x, y, steps, edges = _load_graph(db.path(data_dir))
     keep = _inductive_edge_mask(edges[2])
     edge_index = edges[:2, keep]
 
@@ -200,11 +201,10 @@ def run_gnn(data_dir: Path) -> str:
 
     # fail-closed ordering: validate the challenger artifact BEFORE any
     # artifact is written, so a violation leaves no partial output
-    challenger_path = data_dir / "reports" / "challenger_metrics.json"
-    if not challenger_path.is_file():
-        raise DataQualityError(
-            f"{challenger_path} not found; run `aml challenger` before `aml gnn`."
-        )
+    db.require(
+        db.report_path(data_dir, "challenger_metrics.json"),
+        "run `aml challenger` before `aml gnn`.",
+    )
     report_dir = data_dir / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -229,12 +229,12 @@ def run_gnn(data_dir: Path) -> str:
 def _write_comparison(data_dir: Path, gnn: dict[str, Any]) -> str:
     """Honest GNN-vs-GBM comparison: mean±std per model, explicit loss/tie
     verdict, protocol positioning. Fail-closed on a missing challenger artifact."""
+    challenger_path = db.require(
+        db.report_path(data_dir, "challenger_metrics.json"),
+        "run `aml challenger` before `aml gnn`.",
+    )
     report_dir = data_dir / "reports"
-    challenger_path = report_dir / "challenger_metrics.json"
-    if not challenger_path.is_file():
-        raise DataQualityError(
-            f"{challenger_path} not found; run `aml challenger` before `aml gnn`."
-        )
+    report_dir.mkdir(parents=True, exist_ok=True)
     challenger = json.loads(challenger_path.read_text(encoding="utf-8"))
     cb_pr = [float(m["pr_auc"]) for m in challenger["metrics"]]
     cb_roc = [float(m["roc_auc"]) for m in challenger["metrics"]]

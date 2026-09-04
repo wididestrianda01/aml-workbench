@@ -16,8 +16,7 @@ import joblib
 import numpy as np
 from numpy.typing import NDArray
 
-from aml_workbench import config
-from aml_workbench.errors import DataQualityError
+from aml_workbench import config, db
 from aml_workbench.model import load_labeled, split_temporal
 
 
@@ -50,10 +49,10 @@ def run_drift(data_dir: Path) -> tuple[str, bool]:
     """PSI per feature column + on model scores, train vs test period. Writes
     the drift report; returns (summary, breached). Fail-closed on missing
     artifacts."""
-    model_path = data_dir / "models" / "challenger.joblib"
-    if not model_path.exists():
-        raise DataQualityError("missing models/challenger.joblib - run `aml challenger` first")
-    x, y, steps, names = load_labeled(data_dir / "workbench.duckdb", include_graph=True)
+    model_path = db.require(
+        db.model_path(data_dir, "challenger.joblib"), "run `aml challenger` first"
+    )
+    x, y, steps, names = load_labeled(db.path(data_dir), include_graph=True)
     train_mask, test_mask = split_temporal(steps)
 
     bundle = joblib.load(model_path)
@@ -63,7 +62,11 @@ def run_drift(data_dir: Path) -> tuple[str, bool]:
 
     columns: dict[str, dict[str, Any]] = {}
     for i, name in enumerate(names):
+        if name == "louvain_community":
+            # categorical: quantile-binned PSI is meaningless on it
+            continue
         columns[name] = _psi_entry(x[train_mask, i], x[test_mask, i])
+    excluded = [n for n in names if n == "louvain_community"]
     columns["score"] = _psi_entry(train_scores, test_scores)
 
     breached = any(bool(c["breach"]) for c in columns.values())
@@ -75,9 +78,19 @@ def run_drift(data_dir: Path) -> tuple[str, bool]:
         "reference": "training steps 1-34",
         "comparison": "test steps 35-49",
         "thresholds": {"breach": config.PSI_BREACH_THRESHOLD, "watch": config.PSI_WATCH_THRESHOLD},
+        "excluded": sorted(set(excluded)),
+        "exclusion_note": (
+            "louvain_community is categorical — quantile-binned PSI is "
+            "meaningless on it; monitor via category-share stability instead"
+        ),
         "breached": breached,
         "watch": sorted(watched),
         "columns": columns,
+        "fail_closed": (
+            "any breach exits non-zero: a monitoring breach is an "
+            "escalation-to-review event, never a silent pass (project "
+            "fail-closed doctrine)"
+        ),
     }
     (report_dir / "drift_metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (report_dir / "drift_report.md").write_text(_render_report(payload), encoding="utf-8")
@@ -106,6 +119,10 @@ def _render_report(payload: dict[str, Any]) -> str:
         f"Reference: {payload['reference']} vs {payload['comparison']}. "
         f"Breach threshold {payload['thresholds']['breach']}, "
         f"watch threshold {payload['thresholds']['watch']}.",
+        "",
+        f"Excluded from PSI: {', '.join(payload['excluded'])} — "
+        f"{payload['exclusion_note']}",
+        f"Exit semantics: {payload['fail_closed']}.",
         "",
         "| column | PSI | status |",
         "|---|---|---|",

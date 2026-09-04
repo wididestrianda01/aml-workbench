@@ -15,23 +15,22 @@ import joblib
 import numpy as np
 import shap
 
-from aml_workbench import config
-from aml_workbench.errors import DataQualityError
+from aml_workbench import config, db
 from aml_workbench.model import GRAPH_FEATURE_COLUMNS, load_labeled, split_temporal
 
 
 def run_shap(data_dir: Path) -> str:
     """Write the SHAP summary artifact for the persisted challenger.
     Fail-closed: no persisted model raises before anything is written."""
-    model_path = data_dir / "models" / "challenger.joblib"
-    if not model_path.is_file():
-        raise DataQualityError(f"{model_path} not found; run 'aml challenger' before explaining.")
+    model_path = db.require(
+        db.model_path(data_dir, "challenger.joblib"),
+        "run 'aml challenger' before explaining.",
+    )
     bundle: dict[str, Any] = joblib.load(model_path)
     model = bundle["model"]
     feature_names: list[str] = bundle["feature_names"]
 
-    db_path = data_dir / "workbench.duckdb"
-    x, _, steps, _ = load_labeled(db_path, include_graph=True)
+    x, _, steps, _ = load_labeled(db.path(data_dir), include_graph=True)
     train_mask, test_mask = split_temporal(steps)
     x_test = x[test_mask]
     if x_test.shape[0] > config.SHAP_SAMPLE_ROWS:

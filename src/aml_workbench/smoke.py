@@ -14,16 +14,9 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
-from numpy.typing import NDArray
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, roc_auc_score
-from sklearn.preprocessing import StandardScaler
-
-from aml_workbench import config
+from aml_workbench import config, db
 from aml_workbench.errors import SmokeGateError
-from aml_workbench.model import load_labeled, split_temporal
+from aml_workbench.model import fit_lr_rf, load_labeled, split_temporal
 from aml_workbench.report import render_smoke_report
 
 
@@ -49,58 +42,18 @@ class SmokeResult:
 
 
 
-def _fit_and_score(
-    x: NDArray[np.float64],
-    y: NDArray[np.int64],
-    train_mask: NDArray[np.bool_],
-    test_mask: NDArray[np.bool_],
-) -> list[ModelMetrics]:
-    scaler = StandardScaler()
-    x_train = scaler.fit_transform(x[train_mask])
-    x_test = scaler.transform(x[test_mask])
-    y_train, y_test = y[train_mask], y[test_mask]
-
-    models = [
-        (
-            "logistic_regression",
-            LogisticRegression(
-                max_iter=2000,
-                class_weight="balanced",
-                random_state=config.SMOKE_SEED,
-            ),
-        ),
-        (
-            "random_forest",
-            RandomForestClassifier(
-                n_estimators=300,
-                class_weight="balanced_subsample",
-                n_jobs=-1,
-                random_state=config.SMOKE_SEED,
-            ),
-        ),
-    ]
-    metrics: list[ModelMetrics] = []
-    for name, model in models:
-        model.fit(x_train, y_train)
-        scores = model.predict_proba(x_test)[:, 1]
-        metrics.append(
-            ModelMetrics(
-                name=name,
-                roc_auc=float(roc_auc_score(y_test, scores)),
-                pr_auc=float(average_precision_score(y_test, scores)),
-            )
-        )
-    return metrics
 
 
 def run_smoke(data_dir: Path) -> Path:
     """Run the smoke gate; return the report path. Fail-closed: below the
     gate (or over the runtime limit) raises SmokeGateError and writes nothing."""
-    db_path = data_dir / "workbench.duckdb"
     started = time.monotonic()
-    x, y, steps, _ = load_labeled(db_path)
+    x, y, steps, _ = load_labeled(db.path(data_dir))
     train_mask, test_mask = split_temporal(steps)
-    metrics = _fit_and_score(x, y, train_mask, test_mask)
+    metrics = [
+        ModelMetrics(name=m.model, roc_auc=m.roc_auc, pr_auc=m.pr_auc)
+        for m in fit_lr_rf(x, y, train_mask, test_mask, seed=config.SMOKE_SEED)
+    ]
     runtime_s = time.monotonic() - started
 
     worst_roc = min(m.roc_auc for m in metrics)

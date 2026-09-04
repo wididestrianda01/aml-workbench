@@ -54,3 +54,28 @@ def scalar(con: duckdb.DuckDBPyConnection, sql: str) -> int:
     if row is None or row[0] is None:
         raise DataQualityError(f"Gate query returned no value: {sql}")
     return int(row[0])
+
+
+DB_FILENAME = "workbench.duckdb"
+
+
+def path(data_dir: Path) -> Path:
+    """Canonical store path — the only place the filename is spelled out."""
+    return data_dir / DB_FILENAME
+
+
+def report_path(data_dir: Path, name: str) -> Path:
+    """Cross-stage report artifact path under the data root."""
+    return data_dir / "reports" / name
+
+
+def model_path(data_dir: Path, name: str) -> Path:
+    """Persisted-model artifact path under the data root."""
+    return data_dir / "models" / name
+
+
+def require(file: Path, hint: str) -> Path:
+    """Fail-closed cross-stage artifact check: the file must exist."""
+    if not file.is_file():
+        raise DataQualityError(f"{file} not found; {hint}")
+    return file
