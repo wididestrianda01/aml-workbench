@@ -36,7 +36,7 @@ import networkx as nx
 from aml_workbench import config, db
 from aml_workbench.errors import DataQualityError
 
-_FEATURE_COLUMNS = (
+FEATURE_COLUMNS = (
     ("in_degree", "INTEGER"),
     ("out_degree", "INTEGER"),
     ("reciprocity", "DOUBLE"),
@@ -45,8 +45,6 @@ _FEATURE_COLUMNS = (
     ("louvain_community", "INTEGER"),
     ("time_since_activity", "SMALLINT"),
 )
-
-
 
 
 def _illicit_fraction(neighbours: set[str], labels: dict[str, int | None]) -> float:
@@ -118,9 +116,7 @@ def _compute_features(
         txs_by_step.setdefault(step, []).append(tx)
     edges_by_visible_step: dict[int, list[tuple[str, str]]] = {}
     for src, dst in edges:
-        edges_by_visible_step.setdefault(max(steps[src], steps[dst]), []).append(
-            (src, dst)
-        )
+        edges_by_visible_step.setdefault(max(steps[src], steps[dst]), []).append((src, dst))
 
     # Louvain pre-pass: partition over the train-period graph (all edges
     # visible by TRAIN_STEP_MAX), fixed seed; nodes outside it get -1.
@@ -135,9 +131,7 @@ def _compute_features(
         partition = nx.community.louvain_communities(
             train_graph.to_undirected(), seed=config.GRAPH_SEED
         )
-        communities = {
-            node: cid for cid, nodes in enumerate(partition) for node in nodes
-        }
+        communities = {node: cid for cid, nodes in enumerate(partition) for node in nodes}
 
     graph = nx.DiGraph()
     features: dict[str, tuple[int, int, float, float, float, int, int]] = {}
@@ -145,9 +139,7 @@ def _compute_features(
         for src, dst in edges_by_visible_step.get(step, ()):
             graph.add_edge(src, dst)
         for tx in txs_by_step.get(step, ()):
-            in_deg, out_deg, recip, e1, e2, tsa = _node_features(
-                graph, tx, steps, labels
-            )
+            in_deg, out_deg, recip, e1, e2, tsa = _node_features(graph, tx, steps, labels)
             features[tx] = (in_deg, out_deg, recip, e1, e2, communities.get(tx, -1), tsa)
     return features
 
@@ -169,8 +161,7 @@ def run_graph_features(data_dir: Path) -> str:
         edges = [
             (str(src), str(dst))
             for src, dst in con.execute(
-                "SELECT src_tx_id, dst_tx_id FROM elliptic_edge "
-                "ORDER BY src_tx_id, dst_tx_id"
+                "SELECT src_tx_id, dst_tx_id FROM elliptic_edge ORDER BY src_tx_id, dst_tx_id"
             ).fetchall()
         ]
         steps = {
@@ -181,23 +172,19 @@ def run_graph_features(data_dir: Path) -> str:
         }
         labels = {
             str(tx): (int(label) if label is not None else None)
-            for tx, label in con.execute(
-                "SELECT tx_id, class_label FROM elliptic_tx"
-            ).fetchall()
+            for tx, label in con.execute("SELECT tx_id, class_label FROM elliptic_tx").fetchall()
         }
     finally:
         con.close()
 
     features = _compute_features(edges, steps, labels)
 
-    columns = ", ".join(f"{name} {sql_type}" for name, sql_type in _FEATURE_COLUMNS)
-    placeholders = ", ".join("?" for _ in _FEATURE_COLUMNS)
+    columns = ", ".join(f"{name} {sql_type}" for name, sql_type in FEATURE_COLUMNS)
+    placeholders = ", ".join("?" for _ in FEATURE_COLUMNS)
     db_path = data_dir / "workbench.duckdb"
     con = duckdb.connect(str(db_path))
     try:
-        con.execute(
-            f"CREATE OR REPLACE TABLE tx_graph_features (tx_id VARCHAR, {columns})"
-        )
+        con.execute(f"CREATE OR REPLACE TABLE tx_graph_features (tx_id VARCHAR, {columns})")
         con.executemany(
             f"INSERT INTO tx_graph_features VALUES (?, {placeholders})",
             [(tx, *values) for tx, values in sorted(features.items())],
@@ -223,17 +210,13 @@ def run_graph_features(data_dir: Path) -> str:
         )
         if missing != 0:
             raise DataQualityError(
-                f"{missing} tx ids mismatch between tx_graph_features and "
-                "elliptic_tx_features."
+                f"{missing} tx ids mismatch between tx_graph_features and elliptic_tx_features."
             )
-        null_check = " OR ".join(f"{name} IS NULL" for name, _ in _FEATURE_COLUMNS)
-        nulls = db.scalar(
-            con, f"SELECT count(*) FROM tx_graph_features WHERE {null_check}"
-        )
+        null_check = " OR ".join(f"{name} IS NULL" for name, _ in FEATURE_COLUMNS)
+        nulls = db.scalar(con, f"SELECT count(*) FROM tx_graph_features WHERE {null_check}")
         if nulls != 0:
             raise DataQualityError(
-                f"{nulls} rows in tx_graph_features carry NULLs in required "
-                "features."
+                f"{nulls} rows in tx_graph_features carry NULLs in required features."
             )
     finally:
         con.close()

@@ -109,6 +109,10 @@ REPORTING_THRESHOLD_USD = 10_000.0  # CTR-style reporting threshold (US BSA)
 STRUCTURING_MIN_USD = 9_000.0  # "just below" band floor
 STRUCTURING_TX_COUNT = 3  # >= 3 sub-threshold payments from one account per day
 VELOCITY_TX_COUNT = 20  # >= 20 outgoing transactions in one day (precision-tuned)
+# Rapid-churn semantics redefined 2026-09-03: was "payout within 24h of any
+# inflow" (CHURN_MAX_DELAY_H, deleted) and now same-day inflow/outflow
+# accounting that each sum exactly once — see _churn_sql in rules.py. The
+# alert population is NOT comparable to runs before this date.
 CHURN_MAX_RETAINED_PCT = 0.10  # round trip keeps <= 10% of the inflow
 FAN_MIN_COUNTERPARTIES = 5  # distinct counterparties in one day window
 FAN_MIN_AMOUNT_USD = 50_000.0  # aggregate in the same day window

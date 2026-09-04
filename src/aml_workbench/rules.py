@@ -21,6 +21,13 @@ Design decisions (documented, not hidden):
   infrastructure and excluded from pairing (edges are also pre-deduplicated
   per account-counterparty-day). This bounds the join without changing the
   typology signal: communities are tight clusters, not hub traffic.
+- **Rapid-churn accounting** (redefined 2026-09-03): the scenario no longer
+  asks "payout within 24h of an inflow" (CHURN_MAX_DELAY_H) — that naive
+  inflow x outflow-window join summed one payout against every inflow and
+  inflated payout_ratio. It now does allocation-free same-day pass-through
+  accounting: inflow and outflow each sum exactly once per (account, day),
+  and an outflow counts only after the day's first inflow. Alert populations
+  are not comparable to runs before this date.
 - **Alert model**: every scenario writes rows of (scenario, entity, reason,
   details) into the `rule_alert` table — the schema later fused with ML scores
   in the triage queue.
@@ -43,7 +50,6 @@ WITH usd AS (
 """
 
 _ALL_TXS = "WITH all_tx AS (SELECT * FROM hismall_transaction)"
-
 
 
 def _structuring_sql() -> str:
@@ -249,7 +255,6 @@ FROM cycles
 """
 
 
-
 def _dense_community_sql() -> str:
     return f"""
 {_ALL_TXS}
@@ -299,8 +304,6 @@ _SCENARIOS: tuple[str, ...] = (
 )
 
 
-
-
 def run_rules(data_dir: Path) -> str:
     """Evaluate every scenario and write the `rule_alert` table. Fail-closed:
     missing database/tables raise DataQualityError before any output exists."""
@@ -315,17 +318,11 @@ def run_rules(data_dir: Path) -> str:
             "CREATE OR REPLACE TABLE rule_alert AS "
             + "\nUNION ALL\n".join(f"({sql})" for sql in _SCENARIOS)
         )
-        columns = {
-            row[0] for row in con.execute("DESCRIBE rule_alert").fetchall()
-        }
+        columns = {row[0] for row in con.execute("DESCRIBE rule_alert").fetchall()}
         if columns != {"scenario", "entity", "reason", "details"}:
-            raise DataQualityError(
-                f"rule_alert schema invariant violated: got {sorted(columns)}"
-            )
+            raise DataQualityError(f"rule_alert schema invariant violated: got {sorted(columns)}")
         alert_count = db.scalar(con, "SELECT count(*) FROM rule_alert")
-        scenario_count = db.scalar(
-            con, "SELECT count(DISTINCT scenario) FROM rule_alert"
-        )
+        scenario_count = db.scalar(con, "SELECT count(DISTINCT scenario) FROM rule_alert")
     finally:
         con.close()
     return (

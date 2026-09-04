@@ -17,7 +17,7 @@ import shap
 
 from aml_workbench import config
 from aml_workbench.errors import DataQualityError
-from aml_workbench.model import load_labeled, split_temporal
+from aml_workbench.model import GRAPH_FEATURE_COLUMNS, load_labeled, split_temporal
 
 
 def run_shap(data_dir: Path) -> str:
@@ -25,9 +25,7 @@ def run_shap(data_dir: Path) -> str:
     Fail-closed: no persisted model raises before anything is written."""
     model_path = data_dir / "models" / "challenger.joblib"
     if not model_path.is_file():
-        raise DataQualityError(
-            f"{model_path} not found; run 'aml challenger' before explaining."
-        )
+        raise DataQualityError(f"{model_path} not found; run 'aml challenger' before explaining.")
     bundle: dict[str, Any] = joblib.load(model_path)
     model = bundle["model"]
     feature_names: list[str] = bundle["feature_names"]
@@ -50,9 +48,7 @@ def run_shap(data_dir: Path) -> str:
     report_dir = data_dir / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / "shap_summary.md"
-    graph_names = {
-        name for name in feature_names if not name.startswith("f")
-    }
+    graph_names = set(GRAPH_FEATURE_COLUMNS)
     top_feature = feature_names[int(order[0])]
     lines = [
         "# SHAP Summary",

@@ -101,8 +101,7 @@ def elliptic_files(fixture: EllipticFixture) -> dict[str, bytes]:
         feature_lines.append(f"{tx_id},{step},{values}")
     features = ("\n".join(feature_lines) + "\n").encode()
     class_lines = (
-        f"{tx_id},{label}"
-        for tx_id, label in zip(fixture.tx_ids, fixture.labels, strict=True)
+        f"{tx_id},{label}" for tx_id, label in zip(fixture.tx_ids, fixture.labels, strict=True)
     )
     classes = ("txId,class\n" + "\n".join(class_lines) + "\n").encode()
     edge_lines = (f"{a},{b}" for a, b in fixture.edges)
@@ -143,14 +142,58 @@ class HiSmallFixture:
 
 def build_hismall_fixture() -> HiSmallFixture:
     tx_rows = [
-        ["2022/09/01 00:20", "010", "8000EBD30", "010", "8000EBD30",
-         "3697.34", "US Dollar", "3697.34", "US Dollar", "ACH", "0"],
-        ["2022/09/01 01:05", "010", "8000EBD30", "0256398", "8148A8711",
-         "0.281983", "Bitcoin", "0.281983", "Bitcoin", "Bitcoin", "1"],
-        ["2022/09/02 12:00", "0256398", "8148A8711", "010", "8000EBD30",
-         "100.00", "US Dollar", "100.00", "US Dollar", "Wire", "0"],
-        ["2022/09/03 08:30", "0154518", "8148A6091", "0256398", "8148A8711",
-         "50.00", "Euro", "55.00", "US Dollar", "Cheque", "0"],
+        [
+            "2022/09/01 00:20",
+            "010",
+            "8000EBD30",
+            "010",
+            "8000EBD30",
+            "3697.34",
+            "US Dollar",
+            "3697.34",
+            "US Dollar",
+            "ACH",
+            "0",
+        ],
+        [
+            "2022/09/01 01:05",
+            "010",
+            "8000EBD30",
+            "0256398",
+            "8148A8711",
+            "0.281983",
+            "Bitcoin",
+            "0.281983",
+            "Bitcoin",
+            "Bitcoin",
+            "1",
+        ],
+        [
+            "2022/09/02 12:00",
+            "0256398",
+            "8148A8711",
+            "010",
+            "8000EBD30",
+            "100.00",
+            "US Dollar",
+            "100.00",
+            "US Dollar",
+            "Wire",
+            "0",
+        ],
+        [
+            "2022/09/03 08:30",
+            "0154518",
+            "8148A6091",
+            "0256398",
+            "8148A8711",
+            "50.00",
+            "Euro",
+            "55.00",
+            "US Dollar",
+            "Cheque",
+            "0",
+        ],
     ]
     account_rows = [
         ["Portugal Bank #1", "010", "8000EBD30", "80062E240", "Entity A"],
@@ -208,9 +251,7 @@ def run_ingest(data_dir, track):
 
     from aml_workbench.cli import app
 
-    return CliRunner().invoke(
-        app, ["ingest", "--data-dir", str(data_dir), "--track", track]
-    )
+    return CliRunner().invoke(app, ["ingest", "--data-dir", str(data_dir), "--track", track])
 
 
 def parquet_checksums(data_dir: Path, track: str) -> dict[str, str]:
@@ -219,6 +260,99 @@ def parquet_checksums(data_dir: Path, track: str) -> dict[str, str]:
 
     export = data_dir / "ingest" / track
     return {
-        p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-        for p in sorted(export.glob("*.parquet"))
+        p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(export.glob("*.parquet"))
     }
+
+
+def seed_workbench(db_path: Path, *, graph_only: bool = False) -> None:
+    """Model-stage fixture: elliptic_tx + elliptic_tx_features +
+    tx_graph_features. 196 rows = 4 exact tiles of the 49 steps -> train 136 /
+    test 60.
+
+    Default signal: f001 is RADIAL (illicit iff |f001| > 0.8) — linearly
+    non-separable, so LR cannot ride it and the RF >= LR assertion is a real
+    comparison. ego_illicit_1hop mirrors the label so graph features carry
+    signal too.
+
+    graph_only=True: raw features are pure noise and the label signal lives
+    exclusively in the graph features — the challenger (raw + graph) genuinely
+    beats the raw-feature baselines, exercising the promote path without any
+    monkeypatched margin.
+    """
+    import duckdb
+    import numpy as np
+
+    n_rows = 196
+    rng = np.random.default_rng(0)
+    steps = np.tile(np.arange(1, 50), 4)
+    if graph_only:
+        labels = rng.integers(1, 3, size=n_rows)  # 1 illicit, 2 licit
+        features = rng.normal(size=(n_rows, FEATURE_COUNT))
+        # graph features carry a crisp label mirror; raw side is pure noise
+        ego_base, ego_noise = 0.0, 0.02
+    else:
+        z = rng.normal(size=n_rows)
+        labels = np.where(np.abs(z) > 0.8, 1, 2)
+        features = rng.normal(size=(n_rows, FEATURE_COUNT))
+        features[:, 0] = z * 5.0  # radial: |f001| > 4 <=> illicit
+        # ego mirrors the label only weakly (~[0.35,0.65] band, wide noise) so
+        # the radial f001 band is the DOMINANT signal — the ticket's
+        # "separating raw feature ranks first" SHAP check needs that
+        ego_base, ego_noise = 0.35, 0.2
+    tx_ids = [f"{i:09d}" for i in range(n_rows)]
+
+    con = duckdb.connect(str(db_path))
+    try:
+        cols = ", ".join(f"f{i:03d} REAL" for i in range(1, FEATURE_COUNT + 1))
+        con.execute("CREATE TABLE elliptic_tx (tx_id VARCHAR, class_label TINYINT)")
+        con.execute(
+            f"CREATE TABLE elliptic_tx_features (tx_id VARCHAR, time_step SMALLINT, {cols})"
+        )
+        con.execute(
+            "CREATE TABLE tx_graph_features (tx_id VARCHAR, in_degree INTEGER,"
+            " out_degree INTEGER, reciprocity DOUBLE, ego_illicit_1hop DOUBLE,"
+            " ego_illicit_2hop DOUBLE, louvain_community INTEGER,"
+            " time_since_activity SMALLINT)"
+        )
+        con.executemany(
+            "INSERT INTO elliptic_tx VALUES (?, ?)",
+            [(tx_ids[i], int(labels[i])) for i in range(n_rows)],
+        )
+        con.executemany(
+            f"INSERT INTO elliptic_tx_features VALUES (?, ?, {', '.join(['?'] * FEATURE_COUNT)})",
+            [(tx_ids[i], int(steps[i]), *[float(v) for v in features[i]]) for i in range(n_rows)],
+        )
+        con.executemany(
+            "INSERT INTO tx_graph_features VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    tx_ids[i],
+                    int(rng.integers(0, 6)),
+                    int(rng.integers(0, 6)),
+                    float(rng.integers(0, 2)),
+                    float(ego_base + 0.3 * (labels[i] == 1) + rng.normal(scale=ego_noise)),
+                    float(ego_base + 0.3 * (labels[i] == 1) + rng.normal(scale=ego_noise)),
+                    int(rng.integers(0, 4)),
+                    int(rng.integers(0, 3)),
+                )
+                for i in range(n_rows)
+            ],
+        )
+    finally:
+        con.close()
+
+
+def run_stages(*args: str, data_dir: Path):
+    """CLI seam helper for model stages."""
+    from typer.testing import CliRunner
+
+    from aml_workbench.cli import app
+
+    return CliRunner().invoke(app, [*args, "--data-dir", str(data_dir)])
+
+
+def seed_and_run_baselines(tmp_path: Path, **seed_kwargs) -> None:
+    """Seed the model fixture and run `aml baselines` through the seam."""
+    seed_workbench(tmp_path / "workbench.duckdb", **seed_kwargs)
+    result = run_stages("baselines", data_dir=tmp_path)
+    assert result.exit_code == 0, result.output
