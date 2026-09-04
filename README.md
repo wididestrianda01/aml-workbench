@@ -19,6 +19,23 @@ New to the field? Start with the primers:
 (imbalance and metrics, boosting, walk-forward validation, leakage, drift,
 SHAP). The [technical report](docs/report.md) holds the results.
 
+## The business problem
+
+Banks and fintechs are legally required to monitor customer transactions and
+file suspicious activity reports (SARs). In the US alone, FinCEN received
+~4.6M SARs in FY2023 (~1.75M citing money laundering) from ~294K filing
+institutions. The industry's problem is not a lack of alerts — it is too
+many: peer-reviewed and industry estimates put false positives above 90% of
+all alerts, so most of an investigations budget is spent on alerts that lead
+nowhere. Regulators (EU AMLR/AMLD6, EBA, FinCEN) increasingly require
+institutions to *evidence* that their monitoring works.
+
+This workbench treats that as a measurement problem: a predeclared,
+leak-resistant evaluation of detection quality (Track A), and a fused alert
+queue with explicit precision@k and cost-per-true-positive economics (Track B)
+— the numbers a compliance team actually decides on.
+
+
 ## Pipeline
 
 ```mermaid
@@ -56,7 +73,7 @@ written.
   training and test; breach above 0.25, watch in 0.10-0.25.
 - Detail on all of these: [primer-ml.md](docs/primer-ml.md).
 
-## Results (honest numbers, predeclared protocol)
+## Results
 
 Temporal split only, never random; strict-inductive; PR-AUC was declared the
 challenger metric before any model was trained. Full details and figures:
@@ -119,7 +136,7 @@ from the environment only, never from code or config): copy `.env.example` to
 `.env` and set `KAGGLE_USERNAME` / `KAGGLE_KEY` from a free account at
 <https://www.kaggle.com/account>.
 
-## Data & licences (terms respected, stated honestly)
+## Data & licences
 
 | Dataset | Source | Licence | Consequence |
 |---|---|---|---|

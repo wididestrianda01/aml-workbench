@@ -310,13 +310,63 @@ def run_report(data_dir: Path) -> str:
     f1s = [p["f1"] for p in per_step]
     n_breach = sum(1 for v in psi.values() if v["breach"])
     n_watch = sum(1 for v in psi.values() if v["watch"])
+    # Operating-point arithmetic for the business analysis. Hand-computed
+    # expectation (overall KPI row, $50/investigation): precision@100 = 0.02
+    # -> 2 TPs in top 100 -> cost per TP = 100*50/2 = $2,500; 3 TPs at 500 ->
+    # marginal cost of alerts 101-500 = 400*50/(3-2) = $20,000 per extra TP;
+    # 4 TPs at 1000 -> 500*50/(4-3) = $25,000 per extra TP.
+    inv = config.INVESTIGATION_COST_USD
+    tp100 = int(round(kpi[1] * 100))
+    tp1000 = int(round(kpi[3] * 1000))
+    cost100 = 100 * inv / tp100 if tp100 else float("nan")
+    marg500 = (
+        (500 - 100) * inv / (kpi[0] - tp100) if kpi[0] > tp100 else float("nan")
+    )
+    marg1000 = (
+        500 * inv / (tp1000 - kpi[0]) if tp1000 > kpi[0] else float("nan")
+    )
 
     lines = [
         "# AML Workbench: technical report",
         "",
         f"Lineage: commit `{manifest['commit']}`"
-        f", config fingerprint `{manifest['config_fingerprint'][:12]}`"
+        f", config fingerprint `{manifest['config_fingerprint'][:12]}`",
         f", {manifest['run_count']} tracked MLflow runs (`data/reports/run_manifest.json`).",
+        "",
+        "## Business problem and context",
+        "",
+        "Transaction monitoring is a regulatory obligation, not an optional"
+        " analytics project: institutions must screen customer activity and"
+        " file suspicious activity reports (SARs) with their financial"
+        " intelligence unit. In the US alone, FinCEN received about 4.6 million"
+        " SARs in fiscal year 2023, roughly 1.75 million of them citing money"
+        " laundering, from about 294,000 filing institutions ([FinCEN, FY2023"
+        " Year in"
+        " Review](https://www.fincen.gov/news/news-releases/fincen-year-review-fiscal-year-2023))."
+        " The EU instruments summarized at the end of this report impose the"
+        " same obligation with explicit effectiveness-evidence requirements,"
+        " and enforcement failures have cost institutions billions in fines.",
+        "",
+        "The economics of that obligation are harsh. Peer-reviewed and"
+        " industry estimates place false positives above 90% of generated"
+        " alerts, with commonly cited estimates at 95-98%, meaning most of an"
+        " investigations budget is spent on alerts that lead nowhere"
+        " ([Gerlings & Constantiou,"
+        " 2023](https://arxiv.org/abs/2210.07648), citing Han et al., 2020)."
+        " Alert volume is itself a cost driver: Deloitte reports that"
+        " data-driven threshold calibration of monitoring scenarios typically"
+        " cuts alert volumes by about 30%"
+        " ([Deloitte,"
+        " 2025](https://www.deloitte.com/ch/en/Industries/financial-services/blogs/calibration-of-rule-based-transaction-monitoring-vendor-systems.html))."
+        " A compliance team therefore runs on two questions: how much illicit"
+        " activity does the queue actually surface, and what does each"
+        " surfaced case cost to get to?",
+        "",
+        "This workbench answers both with measured numbers rather than vendor"
+        " claims: a predeclared, leak-resistant evaluation of detection"
+        " quality (Track A) and a fused alert queue with explicit"
+        " precision-at-k and cost-per-true-positive economics (Track B). The"
+        " sections below report those numbers and their limits.",
         "",
         "## Scope and claims",
         "",
@@ -428,9 +478,25 @@ def run_report(data_dir: Path) -> str:
         "",
         _figure(figs / "scenario_kpis.png"),
         "",
+        "Read as an operating-point decision: at $50 per investigation,"
+        f" reviewing the top 100 alerts costs ${cost100:,.0f} per true"
+        " positive; extending review to the top 500 adds alerts whose"
+        f" marginal cost is ${marg500:,.0f} per additional true positive, and"
+        f" the 501-1000 band costs ${marg1000:,.0f} per additional hit. The"
+        " stopping rule for a compliance team follows directly: grow the"
+        " reviewed queue only while the marginal cost per true positive stays"
+        f" below the investigation budget. On this queue that puts the"
+        f" defensible operating point in the top few hundred alerts, not the"
+        f" full {kq:,}-alert queue. The per-scenario KPIs agree: scenario"
+        " precision spans an order of magnitude (structuring and dense-community"
+        " versus rapid-churn), so scenario-threshold calibration — which"
+        " Deloitte estimates typically cuts alert volumes by ~30% at equal"
+        " risk coverage — buys more than raw model power at the tail of the"
+        " queue.",
+        "",
         "## Limitations",
         "",
-        "Stated bluntly, because an interviewer will ask:",
+        "The boundaries of what these results support:",
         "",
         "1. Synthetic and public data only. HI-Small is generated by IBM's AMLSim;"
         " Elliptic is a one-off bitcoin snapshot. Laundering patterns in real bank"
@@ -472,6 +538,12 @@ def run_report(data_dir: Path) -> str:
         " decision) is the conservative posture under both regimes. FATF"
         " Recommendations 20 and 23 set the international baseline for suspicious"
         " transaction reporting that these EU instruments implement.",
+        " Outside the EU, the US Bank Secrecy Act imposes parallel"
+        " obligations: FinCEN's SAR rule (31 CFR 1020.320) requires filing on"
+        " suspected suspicious activity, producing the 4.6 million FY2023"
+        " filings cited above, and the AML Act of 2020 strengthened"
+        " enforcement and whistleblower incentives — the same risk-based,"
+        " evidence-oriented posture the EU package demands.",
         "",
         "## Reproduction",
         "",
