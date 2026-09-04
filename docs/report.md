@@ -57,6 +57,16 @@ Population stability index between training and test steps flags 42 features abo
 
 ![drift_psi](figures/drift_psi.png)
 
+## Business interpretation of the results
+
+For a compliance team, each headline number reads as a staffing or budget decision, not a score:
+
+- **Challenger PR-AUC 0.907.** PR-AUC answers: if we work the queue top-down, how densely is true laundering concentrated in the ranks we review first? Random review of Elliptic's labeled steps hits illicit activity at the ~9.6% base rate; the challenger's ranked queue concentrates it far denser at the top, so the same number of investigations finds several times more true hits. It is a ranking-quality multiplier on investigator time — not a detection rate, and not a claim that 90.7% of laundering is caught.
+- **Baselines (logistic regression ~0.29, random forest ~0.80).** The gap between the simple and boosted models is the measured value of the feature engineering and tuning effort; a bank running a simple model is leaving that much ranking quality on the table.
+- **GNN 0.601 versus GBM 0.907.** The untuned GNN does not buy back its operational cost: a GBM on engineered features is cheaper to run, explain to auditors, and validate — so that is the deployable choice here. Business takeaway: model complexity must be justified by measured gain, not assumed.
+- **Drift (42 breached features).** Inputs move between training and test windows, so a monitoring system silently decays. The PSI report is the trigger for the retraining and champion-challenger cadence an institution must own; measured drift is what turns model maintenance from a policy slogan into a schedule.
+- **Alert queue (Track B).** Precision@100 of 0.0200 means two true laundering hits per 100 investigations at $50 each, i.e. $2,500 per hit at the top of the queue. Industry benchmarks put SAR conversion at a low single-digit percentage of reviewed alerts, so this operating point is in the plausible band — the point is that the queue makes the budget-versus-coverage tradeoff explicit and tunable, which is exactly the effectiveness evidence EBA and FinCEN-style supervision asks institutions to produce.
+
 ## Operational layer (Track B)
 
 The rules engine and the account model fuse into one ranked alert queue (221,115 alerts after deduplication). At the current operating point of 0.0200 precision at k=100 and 0.0060 at k=500, the queue surfaces 3 true positives in the top 500. The cost-per-true-positive curve makes the false-positive economics explicit for a compliance-team audience.
@@ -87,4 +97,4 @@ The EU AML package (Regulation (EU) 2024/1624, AMLR, and Directive (EU) 2024/164
 
 Every number above is produced by a batch pipeline command and stored as an artifact; the seam tests assert the report sections and the KPI arithmetic. `aml track` writes the run manifest that ties these artifacts to a code commit and MLflow run ids.
 
-Generated: 2026-09-04 14:39 UTC
+Generated: 2026-09-04 14:45 UTC

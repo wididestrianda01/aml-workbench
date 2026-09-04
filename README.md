@@ -96,6 +96,15 @@ How to read these numbers:
   precision@500 = 0.006, cost per hit approximately 8,333 USD. Those numbers
   are the false-positive economics made explicit; the operating point is an
   assumption, not a calibrated estimate (see Limitations in the report).
+- **What the model buys a compliance team:** PR-AUC 0.907 means the ranked
+  queue concentrates true hits many times denser than the 9.6% base rate, so
+  the same number of investigations finds several times more laundering —
+  it is a multiplier on investigator time, not a detection rate.
+- **The Track B operating point in business terms:** precision@100 = 0.02 is
+  two true hits per 100 investigations ($2,500 each at the top of the queue),
+  in the same band as industry SAR conversion rates. The queue makes the
+  budget-versus-coverage tradeoff explicit — and tunable — instead of hidden.
+  Full interpretation: [docs/report.md](docs/report.md).
 
 ## Repository tour
 
