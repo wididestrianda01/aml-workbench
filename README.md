@@ -1,4 +1,4 @@
-# AML Workbench — AML Transaction Monitoring & Illicit-Activity Detection Workbench
+# AML Workbench — Transaction Monitoring & Illicit-Activity Detection
 
 A production-shaped, locally deployable AML transaction-monitoring workbench on
 public data — **not** a live banking system. Two tracks:
