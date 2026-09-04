@@ -191,13 +191,32 @@ def shap(data_dir: DataDirOpt = None) -> None:
 @app.command()
 def validate(data_dir: DataDirOpt = None) -> None:
     """Strict-inductive walk-forward validation + per-timestep metrics."""
-    _not_implemented("validate")
+    from aml_workbench.validate import run_validation
+
+    root = _data_dir(data_dir)
+    try:
+        summary = run_validation(root)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 
 @app.command()
 def drift(data_dir: DataDirOpt = None) -> None:
     """PSI drift monitoring on scores and features."""
-    _not_implemented("drift")
+    from aml_workbench.drift import run_drift
+
+    root = _data_dir(data_dir)
+    try:
+        summary, breached = run_drift(root)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
+    if breached:
+        typer.echo("Fail-closed: PSI breach threshold exceeded", err=True)
+        raise typer.Exit(code=1)
 
 
 @app.command()

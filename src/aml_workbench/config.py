@@ -100,6 +100,17 @@ LGBM_GRID: dict[str, tuple[float | int, ...]] = {
     "feature_fraction": (0.8, 1.0),
 }
 
+# --- Walk-forward validation -------------------------------------------------
+# Expanding-window walk-forward over the locked temporal split: for each test
+# step t (35-49) train on labeled rows strictly before t and evaluate at t.
+VALIDATION_F1_THRESHOLD = 0.5  # fixed decision threshold on predicted probability
+
+# --- Drift monitoring (PSI) ---------------------------------------------------
+PSI_BINS = 10  # quantile bins from the reference (train-period) distribution
+PSI_ZERO_EPS = 1e-6  # floor for empty-bin proportions in the PSI sum
+PSI_BREACH_THRESHOLD = 0.25  # industry convention: > 0.25 = significant shift
+PSI_WATCH_THRESHOLD = 0.10  # 0.10-0.25 = moderate shift, watchlist
+
 # --- Rules scenarios (Track B, HI-Small) -------------------------------
 # Scenario thresholds are frozen here and tuned per scenario via
 # `aml alert-stats`. Amount comparisons are US Dollar
