@@ -221,9 +221,16 @@ def drift(data_dir: DataDirOpt = None) -> None:
 
 @app.command()
 def gnn(data_dir: DataDirOpt = None) -> None:
-    """Strict-inductive GraphSAGE baseline (PyG, 3 seeds)."""
-    _not_implemented("gnn")
+    """Strict-inductive GraphSAGE baseline (PyG, 3 seeds) + GNN-vs-GBM report."""
+    from aml_workbench.gnn import run_gnn
 
+    root = _data_dir(data_dir)
+    try:
+        summary = run_gnn(root)
+    except AmlWorkbenchError as exc:
+        typer.echo(f"Fail-closed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(summary)
 
 @app.command()
 def triage(data_dir: DataDirOpt = None) -> None:

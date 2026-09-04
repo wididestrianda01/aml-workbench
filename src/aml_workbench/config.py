@@ -83,6 +83,15 @@ LGBM_NUM_LEAVES = 31
 # promote the challenger only above this PR-AUC gain over the best baseline
 CHALLENGER_MIN_PR_AUC_GAIN = 0.01
 SHAP_SAMPLE_ROWS = 20_000  # seeded subsample of test rows for the summary
+
+# --- GNN baseline (GraphSAGE) -------------------------------------------------
+# Strict-inductive: the message-passing edge set keeps only edges whose LATER
+# endpoint sits at or before the training boundary, so no test-period adjacency
+# enters training or scoring. Test nodes keep their own features but aggregate
+# only from earlier-period neighbors.
+GNN_HIDDEN = 64
+GNN_EPOCHS = 200
+GNN_LR = 0.01
 # --- MLflow tracking ---------------------------------------------------------
 MLFLOW_DB_NAME = "mlflow.db"  # sqlite tracking store under the data root
 
