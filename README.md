@@ -26,8 +26,8 @@ flowchart LR
     download --> ingest["ingest + gates C1-C4"]
     ingest --> smoke["smoke (C5, ROC-AUC gate)"]
     smoke --> rules["rules + alert-stats (Track B)"]
-    smoke --> graph["graph-features (Track A)"]
-    graph --> baselines --> challenger --> shap
+    smoke --> gfeat["graph-features (Track A)"]
+    gfeat --> baselines --> challenger --> shap
     challenger --> validate["walk-forward validate"] --> drift["drift (PSI)"] --> gnn
     rules --> triage["triage (fused queue + KPIs)"]
     triage --> view["Streamlit view"]
